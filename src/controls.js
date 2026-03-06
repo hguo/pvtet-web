@@ -13,7 +13,11 @@ export function initControls() {
 
   document.getElementById('btn-randomize').addEventListener('click', doRandomize);
   document.getElementById('btn-reset').addEventListener('click', doReset);
-  document.getElementById('input-seed').addEventListener('change', doLoadSeed);
+  const seedInput = document.getElementById('input-seed');
+  seedInput.addEventListener('change', doLoadSeed);
+  seedInput.addEventListener('input', doLoadSeed);
+  seedInput.addEventListener('keyup', doLoadSeed);
+  document.getElementById('select-range').addEventListener('change', doLoadSeed);
 
   // Sync inputs from state
   state.on('dataChanged', syncInputsFromState);
@@ -77,7 +81,10 @@ function syncInputsFromState() {
 }
 
 function doLoadSeed() {
-  const seed = parseInt(document.getElementById('input-seed').value) || 0;
+  const seedStr = document.getElementById('input-seed').value;
+  if (seedStr === '') return; // don't reload while field is being cleared
+  const seed = parseInt(seedStr);
+  if (isNaN(seed) || seed < 0) return;
   const range = parseInt(document.getElementById('select-range').value) || 20;
   const { V, W } = randomVW(seed, range);
   state.setVW(V, W);

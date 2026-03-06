@@ -36,11 +36,13 @@ function updateInfo() {
     const seg = state.segments[i];
     const l1 = seg.lamEntry;
     const l2 = seg.lamExit;
-    const l1s = isFinite(l1) ? l1.toFixed(3) : '\u221E';
-    const l2s = isFinite(l2) ? l2.toFixed(3) : '\u221E';
+    const l1s = (l1 !== null && isFinite(l1)) ? l1.toFixed(3) : '\u221E';
+    const l2s = (l2 !== null && isFinite(l2)) ? l2.toFixed(3) : '\u221E';
 
     let desc;
-    if (seg.infinitySpanning) {
+    if (l1 === null && l2 === null) {
+      desc = `S${i + 1}: (bubble)`;
+    } else if (seg.infinitySpanning) {
       desc = `S${i + 1}: (${l1s}, +\u221E) \u222A (-\u221E, ${l2s})`;
     } else {
       const lo = Math.min(l1, l2).toFixed(3);
