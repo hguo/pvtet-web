@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pvtet-web: Interactive PV Tetrahedron Explorer</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
+</head>
+<body>
+  <header id="app-header">
+    <h1>pvtet-web: Interactive PV Tetrahedron Explorer</h1>
+  </header>
+
+  <main id="app-main">
+    <div id="panel-3d">
+      <canvas id="tet-canvas"></canvas>
+    </div>
+
+    <div id="panel-ring">
+      <svg id="ring-svg"></svg>
+    </div>
+
+    <div id="panel-controls">
+      <h3>V <span class="field-label">(4&times;3)</span></h3>
+      <div id="v-grid" class="matrix-grid"></div>
+
+      <h3>W <span class="field-label">(4&times;3)</span></h3>
+      <div id="w-grid" class="matrix-grid"></div>
+
+      <div class="button-row">
+        <button id="btn-randomize">Randomize</button>
+        <button id="btn-reset">Reset</button>
+      </div>
+      <div class="param-row">
+        <label>Seed: <input id="input-seed" type="number" value="0" /></label>
+      </div>
+      <div class="param-row">
+        <label>Range:
+          <select id="select-range">
+            <option value="3">[-3, 3]</option>
+            <option value="5">[-5, 5]</option>
+            <option value="9">[-9, 9]</option>
+            <option value="20" selected>[-20, 20]</option>
+            <option value="50">[-50, 50]</option>
+          </select>
+        </label>
+      </div>
+      <div class="param-row">
+        <label><input id="chk-show-qroots" type="checkbox" checked /> Show Q-roots</label>
+      </div>
+      <div class="button-row">
+        <button id="btn-reset-view">Reset 3D View</button>
+      </div>
+    </div>
+
+    <div id="panel-info"></div>
+  </main>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
