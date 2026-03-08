@@ -10,6 +10,10 @@
 <body>
   <header id="app-header">
     <h1>pvtet-web: Interactive PV Tetrahedron Explorer</h1>
+    <div class="header-actions">
+      <button id="btn-export" title="Export current case as JSON">Export</button>
+      <button id="btn-dark-mode" title="Toggle dark mode">Dark</button>
+    </div>
   </header>
 
   <main id="app-main">
@@ -22,6 +26,21 @@
     </div>
 
     <div id="panel-controls">
+      <h3>Gallery</h3>
+      <select id="select-gallery" style="width:100%; margin-bottom:10px; font-size:12px">
+        <option value="">-- Select a case --</option>
+        <option value="0">Seed 0: Bubble (T0_Q2-_Cv_B)</option>
+        <option value="1">Seed 1: Shared Root (T2_Q3+_SR)</option>
+        <option value="4">Seed 4: 4 punctures (T4_Q3+_Cv)</option>
+        <option value="5">Seed 5: Cross-infinity (T2_Q3+_Cw)</option>
+        <option value="6">Seed 6: Q3- single root (T2_Q3-_Cw)</option>
+        <option value="15">Seed 15: T4 Q3- (T4_Q3-)</option>
+        <option value="118">Seed 118: 6 punctures (T6_Q3+)</option>
+        <option value="898">Seed 898: Quadratic Q (T2_Q2)</option>
+        <option value="1704">Seed 1704: D00 vertex (T4_Q3-_D00)</option>
+        <option value="4325">Seed 4325: D01 edge (T1_Q3-_D01)</option>
+      </select>
+
       <h3>V <span class="field-label">(4&times;3)</span></h3>
       <div id="v-grid" class="matrix-grid"></div>
 
@@ -33,7 +52,7 @@
         <button id="btn-reset">Reset</button>
       </div>
       <div class="param-row">
-        <label>Seed: <input id="input-seed" type="number" value="0" /></label>
+        <label>Seed: <input id="input-seed" type="number" value="0" min="0" /></label>
       </div>
       <div class="param-row">
         <label>Range:
@@ -51,6 +70,24 @@
       </div>
       <div class="button-row">
         <button id="btn-reset-view">Reset 3D View</button>
+      </div>
+
+      <h3 style="margin-top:12px">Animation</h3>
+      <div class="button-row">
+        <button id="btn-animate">Play</button>
+        <label style="font-size:12px">Speed:
+          <input id="input-anim-speed" type="range" min="1" max="100" value="30" style="width:80px" />
+        </label>
+      </div>
+
+      <h3 style="margin-top:12px">Search</h3>
+      <div class="param-row">
+        <input id="input-search" type="text" placeholder="e.g. SR, T6, D00" style="width:100%; font-size:12px; padding:4px" />
+      </div>
+      <div id="search-results" style="font-size:11px; max-height:100px; overflow-y:auto; color:#555"></div>
+
+      <div style="margin-top:12px; font-size:11px; color:#999">
+        Keyboard: &uarr;/&darr; change seed
       </div>
     </div>
 

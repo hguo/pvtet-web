@@ -1,12 +1,12 @@
 /**
  * Full single-tet PV classification and stitching.
- * Mirrors ftk2 pv_tet_case_finder.cu classify_case().
+ * Uses ExactPV2 (PRS + resultants + GCD) for all topological decisions.
  *
  * Given integer V[4][3], W[4][3], produces:
  *   - category string (e.g. "T4_(2,2)_Q3+_SR_Cv2")
  *   - Q/P polynomials, Q roots, discriminant
  *   - punctures with interval assignment, edge/vertex flags
- *   - paired segments via Sturm-based stitching
+ *   - paired segments via ExactPV2 pure-integer stitching
  *   - degeneracy tags, Cv/Cw positions, bubble detection
  */
 
@@ -14,12 +14,9 @@ import { characteristicPolynomials, polyEval } from './polynomials.js';
 import { solveCubic } from './roots.js';
 import {
   characteristicPolynomials_bigint, discriminantSign_bigint,
-  hasSharedRoot_bigint, gcdNormalizePoly, allParallel,
+  hasSharedRoot_bigint, allParallel,
 } from './bigint_poly.js';
-import {
-  buildSturmCubic, sturmCountCubic, sturmCountCubicCertified,
-} from './sturm.js';
-import { solvePVTriangle } from './triangle_solver.js';
+import { solvePVTetV2 } from './exactpv2.js';
 import { FACE_VERTS, TET_VERTS, baryTetTo3D } from './curves.js';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -134,7 +131,6 @@ export function classifyTetCase(V, W) {
   if (degQ === 3) {
     cc.Q_disc_sign = discriminantSign_bigint(Q_bigint);
   } else if (degQ === 2) {
-    // Quadratic discriminant: Q[1]²-4Q[0]Q[2]
     const qdisc = Q[1] * Q[1] - 4 * Q[0] * Q[2];
     cc.Q_disc_sign = qdisc > 0 ? 1 : qdisc < 0 ? -1 : 0;
   }
@@ -154,112 +150,121 @@ export function classifyTetCase(V, W) {
     else qType = 'Q3o';
   }
 
-  // ── Phase 3: Puncture extraction (triangle solver on each face) ──
-  const rawPunctures = [];
-  for (let f = 0; f < 4; f++) {
-    const fv = FACE_VERTS[f];
-    const V_face = [V[fv[0]], V[fv[1]], V[fv[2]]];
-    const W_face = [W[fv[0]], W[fv[1]], W[fv[2]]];
+  // ── Phase 3: ExactPV2 solver ──
+  const pv2 = solvePVTetV2(Q_bigint, P_bigint);
 
-    const result = solvePVTriangle(V_face, W_face, fv);
-    if (result === null) continue; // entire face is PV (degenerate)
+  // Map ExactPV2 punctures to display format
+  const punctures = [];
+  for (const ep of pv2.punctures) {
+    const fv = FACE_VERTS[ep.face];
+    let lambda, mu;
 
-    for (const p of result) {
-      // Face bary → 3D position
-      const pos3d = [0, 0, 0];
-      for (let i = 0; i < 3; i++)
-        for (let d = 0; d < 3; d++)
-          pos3d[d] += p.bary[i] * TET_VERTS[fv[i]][d];
-
-      // Face bary → tet bary
-      const mu = [0, 0, 0, 0];
-      for (let i = 0; i < 3; i++) mu[fv[i]] += p.bary[i];
-
-      // Determine tet edge/vertex for edge/vertex punctures
-      let tetEdge = null, tetVertex = -1;
-      if (p.isVertex) {
-        // Find which tet vertex (bary ≈ 1)
-        let maxK = 0;
-        for (let k = 1; k < 3; k++) if (p.bary[k] > p.bary[maxK]) maxK = k;
-        tetVertex = fv[maxK];
-      } else if (p.isEdge) {
-        // Find which tet edge (two nonzero bary coords)
-        const nonzero = [];
-        for (let k = 0; k < 3; k++) if (Math.abs(p.bary[k]) > 1e-10) nonzero.push(fv[k]);
-        if (nonzero.length === 2) tetEdge = nonzero.sort((a, b) => a - b);
+    if (ep.isInfinity) {
+      lambda = Infinity;
+      if (Q[3] !== 0) {
+        mu = P.map(pk => pk[3] / Q[3]);
+      } else {
+        mu = [0.25, 0.25, 0.25, 0.25];
       }
-
-      rawPunctures.push({
-        face: f,
-        lambda: p.lambda,
-        bary: p.bary,
-        mu,
-        pos3d,
-        isEdge: p.isEdge,
-        isVertex: p.isVertex,
-        tetEdge,
-        tetVertex,
-        faceVertices: [...fv],
-        intervalIdx: -1,
-      });
+    } else {
+      // Solve float P[face] polynomial for roots
+      const roots = solveCubic(P[ep.face]).sort((a, b) => a - b);
+      lambda = (ep.rootIdx < roots.length) ? roots[ep.rootIdx] : (roots[roots.length - 1] || 0);
+      const qVal = polyEval(Q, lambda);
+      if (Math.abs(qVal) > 1e-30) {
+        mu = P.map(pk => polyEval(pk, lambda) / qVal);
+      } else {
+        mu = [0.25, 0.25, 0.25, 0.25];
+      }
     }
+
+    // Clip and normalize mu
+    const muClip = mu.map(m => Math.max(0, m));
+    const s = muClip.reduce((a, b) => a + b, 0);
+    const muNorm = s > 1e-10 ? muClip.map(m => m / s) : [0.25, 0.25, 0.25, 0.25];
+
+    const pos3d = baryTetTo3D(muNorm);
+    const bary = [muNorm[fv[0]], muNorm[fv[1]], muNorm[fv[2]]];
+
+    // Determine tetEdge/tetVertex
+    let tetEdge = null, tetVertex = -1;
+    if (ep.isVertex) {
+      let maxK = 0;
+      for (let k = 1; k < 4; k++) if (muNorm[k] > muNorm[maxK]) maxK = k;
+      tetVertex = maxK;
+    } else if (ep.isEdge && ep.edgeFaces[0] >= 0) {
+      tetEdge = [0, 1, 2, 3]
+        .filter(v => v !== ep.edgeFaces[0] && v !== ep.edgeFaces[1])
+        .sort((a, b) => a - b);
+    }
+
+    punctures.push({
+      face: ep.face,
+      lambda,
+      bary,
+      mu: muNorm,
+      pos3d,
+      isEdge: ep.isEdge,
+      isVertex: ep.isVertex,
+      tetEdge,
+      tetVertex,
+      faceVertices: [...fv],
+      intervalIdx: ep.qInterval,
+    });
   }
 
-  // Deduplicate edge punctures (same tet edge from two faces)
-  const deduped = deduplicatePunctures(rawPunctures);
+  cc.punctures = punctures;
 
-  // ── Phase 4: Infinity punctures (λ=∞ and λ=0 from leading/constant coeffs) ──
-  addInfinityPunctures(deduped, cc);
-
-  cc.punctures = deduped;
-
-  // ── Phase 5: Build intervals from Q roots ──
+  // ── Phase 4: Build intervals from Q roots (for display) ──
   cc.intervals = buildIntervals(qRoots);
 
-  // ── Phase 6: Assign punctures to intervals ──
-  assignPuncturesToIntervals(cc);
-
-  // ── Phase 7: Waypoint filtering and T-category ──
-  const tags = [];
-
-  // Recount interval occupancy excluding waypoints
+  // Update interval occupancy for display
   for (const iv of cc.intervals) iv.n_pv = 0;
   for (const pi of cc.punctures) {
-    if (!isWaypoint(pi) && pi.intervalIdx >= 0)
+    if (pi.intervalIdx >= 0 && pi.intervalIdx < cc.intervals.length)
       cc.intervals[pi.intervalIdx].n_pv++;
   }
 
-  let nFace = 0;
-  for (const pi of cc.punctures) {
-    if (!isWaypoint(pi)) nFace++;
-  }
+  // ── Phase 5: T-category ──
+  const tags = [];
 
-  // Occupancy tuple (sorted non-zero n_pv counts)
-  const occTuple = cc.intervals
-    .map(iv => iv.n_pv)
-    .filter(x => x > 0)
-    .sort((a, b) => a - b);
+  const nFace = punctures.length;
+
+  // Occupancy tuple from ExactPV2 qInterval
+  const occMap = new Map();
+  for (const pi of punctures) {
+    if (pi.intervalIdx >= 0)
+      occMap.set(pi.intervalIdx, (occMap.get(pi.intervalIdx) || 0) + 1);
+  }
+  const occTuple = [...occMap.values()].sort((a, b) => a - b);
 
   let tCat = `T${nFace}`;
   if (occTuple.length > 1) tCat += `_(${occTuple.join(',')})`;
   cc.category = tCat + '_' + qType;
 
-  // ── Phase 8: Shared-root detection ──
+  // ── Phase 6: Shared-root detection ──
   cc.has_shared_root = hasSharedRoot_bigint(Q_bigint, P_bigint);
   if (cc.has_shared_root) {
     tags.push('SR');
     findSRLocation(cc);
   }
 
-  // ── Phase 9: Critical-point degeneracies ──
+  // ── Phase 7: Critical-point degeneracies ──
   detectCriticalPoints(cc, tags);
   detectDmd(cc, tags);
   detectBubble(cc, tags);
 
   if (tags.length > 0) cc.category += '_' + tags.join('_');
 
-  // ── Phase 10: Stitching (pairing) ──
-  cc.pairs = stitchPunctures(cc);
+  // ── Phase 8: Pairing from ExactPV2 ──
+  cc.pairs = [];
+  for (const pair of pv2.pairs) {
+    const pi_a = pair.a, pi_b = pair.b;
+    const a_iv = punctures[pi_a] ? punctures[pi_a].intervalIdx : -1;
+    const b_iv = punctures[pi_b] ? punctures[pi_b].intervalIdx : -1;
+    const is_cross = a_iv !== b_iv;
+    cc.pairs.push({ pi_a, pi_b, is_cross, interval_idx: Math.min(a_iv, b_iv) });
+  }
 
   return cc;
 }
@@ -267,11 +272,6 @@ export function classifyTetCase(V, W) {
 // ═══════════════════════════════════════════════════════════════════════
 // Helpers
 // ═══════════════════════════════════════════════════════════════════════
-
-function isWaypoint(p) {
-  return (p.isEdge || p.isVertex) &&
-         (p.lambda === 0.0 || !isFinite(p.lambda));
-}
 
 function buildIntervals(qRoots) {
   const roots = [...qRoots].sort((a, b) => a - b);
@@ -287,191 +287,13 @@ function buildIntervals(qRoots) {
   return intervals;
 }
 
-/** Deduplicate edge and vertex punctures. */
-function deduplicatePunctures(punctures) {
-  // Vertex dedup: same tet vertex from multiple faces → keep lex-smallest face
-  const vtxGroups = new Map();
-  for (let i = 0; i < punctures.length; i++) {
-    const p = punctures[i];
-    if (!p.isVertex || p.tetVertex < 0) continue;
-    if (!vtxGroups.has(p.tetVertex)) vtxGroups.set(p.tetVertex, []);
-    vtxGroups.get(p.tetVertex).push(i);
-  }
-  const toRemove = new Set();
-  for (const [, group] of vtxGroups) {
-    if (group.length <= 1) continue;
-    let canonical = group[0];
-    let canFace = [...punctures[canonical].faceVertices].sort((a, b) => a - b);
-    for (const pi of group) {
-      const f = [...punctures[pi].faceVertices].sort((a, b) => a - b);
-      if (lexLess(f, canFace)) { canonical = pi; canFace = f; }
-    }
-    for (const pi of group) if (pi !== canonical) toRemove.add(pi);
-  }
-
-  // Edge dedup: same tet edge from multiple faces → keep first
-  const edgeSeen = new Set();
-  for (let i = 0; i < punctures.length; i++) {
-    if (toRemove.has(i)) continue;
-    const p = punctures[i];
-    if (!p.isEdge || !p.tetEdge) continue;
-    const key = `${p.tetEdge[0]},${p.tetEdge[1]}`;
-    if (edgeSeen.has(key)) toRemove.add(i);
-    else edgeSeen.add(key);
-  }
-
-  return punctures.filter((_, i) => !toRemove.has(i));
-}
-
-function lexLess(a, b) {
-  for (let i = 0; i < Math.min(a.length, b.length); i++) {
-    if (a[i] < b[i]) return true;
-    if (a[i] > b[i]) return false;
-  }
-  return a.length < b.length;
-}
-
-/**
- * Add punctures at λ=∞ and λ=0 from polynomial leading/constant coefficients.
- * Only adds when P_k[deg]==0 for some k (point is on tet face/edge/vertex).
- * Mirrors ftk2: punctures exist only where the curve crosses the tet boundary.
- */
-function addInfinityPunctures(punctures, cc) {
-  const { Q_coeffs: Q, P_coeffs: P, Q_bigint, P_bigint } = cc;
-
-  // λ=∞: check each face k where P_k[3]==0 (exact integer check)
-  if (Q[3] !== 0) {
-    const q3 = Q_bigint[3];
-    for (let k = 0; k < 4; k++) {
-      if (P_bigint[k][3] !== 0n) continue; // μ_k(∞) ≠ 0 → not on face k
-      // Check remaining coords: P_j[3]*Q[3] >= 0 for j≠k
-      let inside = true;
-      for (let j = 0; j < 4; j++) {
-        if (j === k) continue;
-        if (P_bigint[j][3] * q3 < 0n) { inside = false; break; }
-      }
-      if (!inside) continue;
-      // Already found by face solver?
-      if (punctures.some(p => !isFinite(p.lambda))) continue;
-      // Determine edge/vertex
-      const nZero = P_bigint.filter(pk => pk[3] === 0n).length;
-      const isVertex = nZero >= 3;
-      const isEdge = nZero >= 2 && !isVertex;
-      const mu = P.map(pk => pk[3] / Q[3]);
-      const muClip = mu.map(m => Math.max(0, m));
-      const s = muClip.reduce((a, b) => a + b, 0);
-      if (s < 1e-10) continue;
-      const muNorm = muClip.map(m => m / s);
-      punctures.push({
-        face: -1, lambda: Infinity, bary: [0, 0, 0],
-        mu: muNorm, pos3d: baryTetTo3D(muNorm),
-        isEdge, isVertex, tetEdge: null, tetVertex: -1,
-        faceVertices: [], intervalIdx: -1,
-      });
-      break; // one puncture per λ=∞
-    }
-  }
-
-  // λ=0: check each face k where P_k[0]==0 (exact integer check)
-  if (Q[0] !== 0) {
-    const q0 = Q_bigint[0];
-    for (let k = 0; k < 4; k++) {
-      if (P_bigint[k][0] !== 0n) continue; // μ_k(0) ≠ 0 → not on face k
-      let inside = true;
-      for (let j = 0; j < 4; j++) {
-        if (j === k) continue;
-        if (P_bigint[j][0] * q0 < 0n) { inside = false; break; }
-      }
-      if (!inside) continue;
-      if (punctures.some(p => p.lambda === 0.0)) continue;
-      const nZero = P_bigint.filter(pk => pk[0] === 0n).length;
-      const isVertex = nZero >= 3;
-      const isEdge = nZero >= 2 && !isVertex;
-      const mu = P.map(pk => pk[0] / Q[0]);
-      const muClip = mu.map(m => Math.max(0, m));
-      const s = muClip.reduce((a, b) => a + b, 0);
-      if (s < 1e-10) continue;
-      const muNorm = muClip.map(m => m / s);
-      punctures.push({
-        face: -1, lambda: 0.0, bary: [0, 0, 0],
-        mu: muNorm, pos3d: baryTetTo3D(muNorm),
-        isEdge, isVertex, tetEdge: null, tetVertex: -1,
-        faceVertices: [], intervalIdx: -1,
-      });
-      break;
-    }
-  }
-}
-
-/** Assign each puncture to its Q-interval via Sturm counts or sign-of-Q. */
-function assignPuncturesToIntervals(cc) {
-  const { Q_coeffs: Q, Q_roots: roots, intervals, punctures, qDegree } = cc;
-
-  if (intervals.length <= 1 || qDegree === 0) {
-    // Single interval: all punctures in interval 0
-    for (const p of punctures) p.intervalIdx = 0;
-    return;
-  }
-
-  if (cc.n_Q_roots === 1) {
-    // Q3- or Q1: sign-of-Q method
-    const signQ3 = Q[qDegree] > 0 ? 1 : -1;
-    for (const p of punctures) {
-      if (!isFinite(p.lambda)) {
-        // λ=∞ → rightmost interval
-        p.intervalIdx = intervals.length - 1;
-        continue;
-      }
-      const qVal = polyEval(Q, p.lambda);
-      const signQ = qVal > 0 ? 1 : qVal < 0 ? -1 : 0;
-
-      if (signQ === 0) {
-        // At a Q-root boundary — perturb
-        const delta = 4 * Number.EPSILON * Math.max(1, Math.abs(p.lambda));
-        const qPerturbed = polyEval(Q, p.lambda + delta);
-        p.intervalIdx = (qPerturbed > 0) === (signQ3 > 0) ? 1 : 0;
-      } else {
-        p.intervalIdx = (signQ > 0) === (signQ3 > 0) ? 1 : 0;
-      }
-    }
-    return;
-  }
-
-  // Q3+ or Q2: Sturm sequence method
-  const Q_d = gcdNormalizePoly(cc.Q_bigint);
-  let degQ_d = 3;
-  while (degQ_d > 0 && Q_d[degQ_d] === 0) degQ_d--;
-  if (degQ_d === 0) {
-    for (const p of punctures) p.intervalIdx = 0;
-    return;
-  }
-
-  const seq = buildSturmCubic(Q_d);
-
-  for (const p of punctures) {
-    if (!isFinite(p.lambda)) {
-      p.intervalIdx = intervals.length - 1;
-      continue;
-    }
-    const { count, certified } = sturmCountCubicCertified(seq, p.lambda);
-    let cnt;
-    if (certified) {
-      cnt = count;
-    } else {
-      const delta = 4 * Number.EPSILON * Math.max(1, Math.abs(p.lambda));
-      cnt = sturmCountCubic(seq, p.lambda + delta);
-    }
-    p.intervalIdx = Math.max(0, Math.min(intervals.length - 1, cc.n_Q_roots - cnt));
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════════════
 // Degeneracy detection
 // ═══════════════════════════════════════════════════════════════════════
 
-/** Detect Cv/Cw critical points (interior + face/edge/vertex). */
+/** Detect Cv/Cw critical points (interior + boundary). */
 function detectCriticalPoints(cc, tags) {
-  const { V, W, punctures } = cc;
+  const { V, W, Q_bigint, P_bigint } = cc;
 
   // Interior: check if v=0 or w=0 inside tet
   const cvMu = checkFieldZeroInTet(V);
@@ -485,20 +307,41 @@ function detectCriticalPoints(cc, tags) {
   if (hasCv) { cc.has_Cv_pos = true; cc.Cv_mu = cvMu; }
   if (hasCw) { cc.has_Cw_pos = true; cc.Cw_mu = cwMu; }
 
-  // Scan punctures for face/edge/vertex at critical λ
-  for (const pi of punctures) {
-    const isLam0 = pi.lambda === 0.0;
-    const isLamInf = !isFinite(pi.lambda);
-
-    if (isLam0) {
-      if (pi.isVertex) hasC0v = true;
-      else if (pi.isEdge) hasC1v = true;
+  // Boundary Cv: λ=0 on face/edge/vertex (check BigInt P[k][0])
+  if (Q_bigint[0] !== 0n) {
+    for (let k = 0; k < 4; k++) {
+      if (P_bigint[k][0] !== 0n) continue;
+      let inside = true;
+      let nzero = 0;
+      for (let j = 0; j < 4; j++) {
+        if (j === k) continue;
+        if (P_bigint[j][0] === 0n) { nzero++; continue; }
+        if (P_bigint[j][0] * Q_bigint[0] < 0n) { inside = false; break; }
+      }
+      if (!inside) continue;
+      if (nzero >= 2) hasC0v = true;
+      else if (nzero >= 1) hasC1v = true;
       else hasC2v = true;
+      break;
     }
-    if (isLamInf) {
-      if (pi.isVertex) hasC0w = true;
-      else if (pi.isEdge) hasC1w = true;
+  }
+
+  // Boundary Cw: λ=∞ on face/edge/vertex (check BigInt P[k][3])
+  if (Q_bigint[3] !== 0n) {
+    for (let k = 0; k < 4; k++) {
+      if (P_bigint[k][3] !== 0n) continue;
+      let inside = true;
+      let nzero = 0;
+      for (let j = 0; j < 4; j++) {
+        if (j === k) continue;
+        if (P_bigint[j][3] === 0n) { nzero++; continue; }
+        if (P_bigint[j][3] * Q_bigint[3] < 0n) { inside = false; break; }
+      }
+      if (!inside) continue;
+      if (nzero >= 2) hasC0w = true;
+      else if (nzero >= 1) hasC1w = true;
       else hasC2w = true;
+      break;
     }
   }
 
@@ -532,10 +375,10 @@ function detectDmd(cc, tags) {
     if (cx === 0 && cy === 0 && cz === 0) hasD00 = true;
   }
 
-  // D01: edge puncture at generic λ (not critical)
+  // D01: edge puncture at generic λ (ExactPV2 already excludes waypoints)
   let hasD01 = false;
   for (const pi of punctures) {
-    if (pi.isEdge && pi.lambda !== 0.0 && isFinite(pi.lambda)) hasD01 = true;
+    if (pi.isEdge) hasD01 = true;
   }
 
   if (hasD00) tags.push('D00');
@@ -546,8 +389,8 @@ function detectDmd(cc, tags) {
 function detectBubble(cc, tags) {
   const { Q_coeffs: Q, P_coeffs: P, n_Q_roots } = cc;
 
-  const nFace = cc.punctures.filter(p => !isWaypoint(p)).length;
-  if (nFace > 0) return;
+  // ExactPV2 already excludes waypoints, so all punctures are valid
+  if (cc.punctures.length > 0) return;
   if (n_Q_roots > 0) return;
   if (Q[0] === 0) return;
 
@@ -570,7 +413,6 @@ function detectBubble(cc, tags) {
 function findSRLocation(cc) {
   const { Q_coeffs: Q, P_coeffs: P, Q_roots: roots, punctures } = cc;
 
-  // Derivative of polynomial: d/dλ (c0 + c1λ + c2λ² + c3λ³) = c1 + 2c2λ + 3c3λ²
   function polyDerivEval(coeffs, x) {
     return coeffs[1] + 2 * coeffs[2] * x + 3 * coeffs[3] * x * x;
   }
@@ -595,8 +437,7 @@ function findSRLocation(cc) {
           return;
         }
 
-        // L'Hôpital: μ_j(root) = P_j'(root)/Q'(root) for shared component,
-        // and nearby evaluation for others. Only valid if result is inside tet.
+        // L'Hôpital: μ_j(root) = P_j'(root)/Q'(root)
         const qDeriv = polyDerivEval(Q, root);
         if (Math.abs(qDeriv) > 1e-10) {
           const mu = P.map(pk => polyDerivEval(pk, root) / qDeriv);
@@ -626,120 +467,9 @@ function findSRLocation(cc) {
           }
         }
 
-        // SR root exists but curve is not inside tet here — no marker
         cc.SR_pos3d = null;
         return;
       }
     }
   }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// Stitching: pair punctures into curve segments
-// ═══════════════════════════════════════════════════════════════════════
-
-/**
- * Full stitching algorithm matching ftk2 pv_tet_case_finder.cu.
- *
- * 1. Group non-waypoint punctures by interval
- * 2. Sort within each interval by λ
- * 3. Infinity merging (check asymptotic point inside tet)
- * 4. Pair (0,1),(2,3),... within each group
- * 5. SR pass-through for unpaired remainders
- */
-function stitchPunctures(cc) {
-  const { punctures, Q_coeffs: Q, P_coeffs: P, Q_bigint, P_bigint } = cc;
-  const pairs = [];
-
-  // Step 1: Group non-waypoint punctures by interval
-  const ivPuncs = new Map(); // intervalIdx → [puncture indices]
-  for (let i = 0; i < punctures.length; i++) {
-    if (isWaypoint(punctures[i])) continue;
-    const iv = punctures[i].intervalIdx;
-    if (iv < 0) continue;
-    if (!ivPuncs.has(iv)) ivPuncs.set(iv, []);
-    ivPuncs.get(iv).push(i);
-  }
-
-  // Step 2: Sort within each interval by λ (∞ sorts to end)
-  for (const [, pis] of ivPuncs) {
-    pis.sort((a, b) => {
-      const la = punctures[a].lambda, lb = punctures[b].lambda;
-      if (!isFinite(la) && !isFinite(lb)) return 0;
-      if (!isFinite(la)) return 1;
-      if (!isFinite(lb)) return -1;
-      return la - lb;
-    });
-  }
-
-  // Step 3: Infinity merging
-  const nIntervals = cc.intervals.length;
-  const leftIdx = 0;
-  const rightIdx = nIntervals - 1;
-  let mergedInfinity = false;
-  // Track original interval membership for is_cross detection (matching ftk2)
-  const rightOriginSet = new Set();
-  const leftOriginSet = new Set();
-
-  if (nIntervals >= 2 && (ivPuncs.has(leftIdx) || ivPuncs.has(rightIdx))) {
-    // Check if asymptotic point is inside tet: sign(P_k[3]) matches sign(Q[3])
-    let mergeOk;
-    if (Q[3] === 0) {
-      mergeOk = true;
-    } else {
-      mergeOk = true;
-      const q3 = Q_bigint[3];
-      for (let k = 0; k < 4; k++) {
-        if (P_bigint[k][3] * q3 < 0n) { mergeOk = false; break; }
-      }
-    }
-
-    if (mergeOk) {
-      const rightPis = ivPuncs.get(rightIdx) || [];
-      const leftPis = ivPuncs.get(leftIdx) || [];
-      for (const pi of rightPis) rightOriginSet.add(pi);
-      for (const pi of leftPis) leftOriginSet.add(pi);
-      // Merge: right then left (projective order through infinity)
-      const merged = [...rightPis, ...leftPis];
-      ivPuncs.set(rightIdx, merged);
-      ivPuncs.delete(leftIdx);
-      mergedInfinity = true;
-    }
-  }
-
-  // Step 4: Pair within each interval group
-  const unpaired = [];
-  for (const [ivIdx, pis] of ivPuncs) {
-    for (let j = 0; j + 1 < pis.length; j += 2) {
-      const pi_a = pis[j], pi_b = pis[j + 1];
-      // is_cross: one puncture from original right interval, other from left
-      let isCross = false;
-      if (mergedInfinity && ivIdx === rightIdx) {
-        isCross = (rightOriginSet.has(pi_a) && leftOriginSet.has(pi_b)) ||
-                  (leftOriginSet.has(pi_a) && rightOriginSet.has(pi_b));
-      }
-      pairs.push({ pi_a, pi_b, is_cross: isCross, interval_idx: ivIdx });
-    }
-    if (pis.length % 2 === 1) {
-      unpaired.push(pis[pis.length - 1]);
-    }
-  }
-
-  // Step 5: SR pass-through pairing
-  if (unpaired.length >= 2) {
-    unpaired.sort((a, b) => {
-      const la = punctures[a].lambda, lb = punctures[b].lambda;
-      if (!isFinite(la)) return 1;
-      if (!isFinite(lb)) return -1;
-      return la - lb;
-    });
-    for (let j = 0; j + 1 < unpaired.length; j += 2) {
-      pairs.push({
-        pi_a: unpaired[j], pi_b: unpaired[j + 1],
-        is_cross: false, interval_idx: -1,
-      });
-    }
-  }
-
-  return pairs;
 }

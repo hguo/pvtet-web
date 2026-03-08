@@ -35,7 +35,11 @@ export function initTet3D() {
   // Renderer
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(window.devicePixelRatio);
-  renderer.setClearColor(0xffffff, 1);
+  updateClearColor();
+
+  // Watch for dark mode changes
+  const observer = new MutationObserver(updateClearColor);
+  observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
   // CSS2D label renderer
   labelRenderer = new CSS2DRenderer();
@@ -511,6 +515,11 @@ function onResize() {
   renderer.setSize(w, h);
   labelRenderer.setSize(w, h);
   controls.handleResize();
+}
+
+function updateClearColor() {
+  const isDark = document.body.classList.contains('dark');
+  renderer.setClearColor(isDark ? 0x1e1e3e : 0xffffff, 1);
 }
 
 function animate() {

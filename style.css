@@ -1,3 +1,37 @@
+:root {
+  --bg: #f5f5f5;
+  --fg: #333;
+  --panel-bg: #fff;
+  --panel-border: #ddd;
+  --header-bg: #2c3e50;
+  --header-fg: #ecf0f1;
+  --input-border: #ccc;
+  --input-focus: #3498db;
+  --btn-bg: #ecf0f1;
+  --btn-hover: #d5dbdb;
+  --btn-active: #bdc3c7;
+  --label-fg: #666;
+  --muted: #888;
+  --canvas-bg: #ffffff;
+}
+
+body.dark {
+  --bg: #1a1a2e;
+  --fg: #e0e0e0;
+  --panel-bg: #16213e;
+  --panel-border: #2a2a4a;
+  --header-bg: #0f3460;
+  --header-fg: #e0e0e0;
+  --input-border: #3a3a5a;
+  --input-focus: #5599dd;
+  --btn-bg: #2a2a4a;
+  --btn-hover: #3a3a5a;
+  --btn-active: #4a4a6a;
+  --label-fg: #aaa;
+  --muted: #888;
+  --canvas-bg: #1e1e3e;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -6,21 +40,40 @@
 
 body {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  background: #f5f5f5;
-  color: #333;
+  background: var(--bg);
+  color: var(--fg);
   overflow: hidden;
   height: 100vh;
 }
 
 #app-header {
-  background: #2c3e50;
-  color: #ecf0f1;
+  background: var(--header-bg);
+  color: var(--header-fg);
   padding: 8px 16px;
   font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 #app-header h1 {
   font-size: 16px;
   font-weight: 600;
+}
+.header-actions {
+  display: flex;
+  gap: 6px;
+}
+.header-actions button {
+  padding: 4px 10px;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 4px;
+  background: rgba(255,255,255,0.1);
+  color: var(--header-fg);
+  cursor: pointer;
+  font-size: 12px;
+}
+.header-actions button:hover {
+  background: rgba(255,255,255,0.2);
 }
 
 #app-main {
@@ -35,8 +88,8 @@ body {
 #panel-3d {
   grid-row: 1;
   grid-column: 1;
-  background: #fff;
-  border: 1px solid #ddd;
+  background: var(--canvas-bg);
+  border: 1px solid var(--panel-border);
   border-radius: 4px;
   position: relative;
   overflow: hidden;
@@ -52,8 +105,8 @@ body {
 #panel-ring {
   grid-row: 1;
   grid-column: 2;
-  background: #fff;
-  border: 1px solid #ddd;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -70,8 +123,8 @@ body {
 #panel-controls {
   grid-row: 1;
   grid-column: 3;
-  background: #fff;
-  border: 1px solid #ddd;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
   border-radius: 4px;
   padding: 12px;
   overflow-y: auto;
@@ -81,12 +134,12 @@ body {
 #panel-controls h3 {
   font-size: 13px;
   margin-bottom: 4px;
-  color: #2c3e50;
+  color: var(--fg);
 }
 #panel-controls h3 .field-label {
   font-weight: normal;
   font-size: 11px;
-  color: #888;
+  color: var(--muted);
 }
 
 .matrix-grid {
@@ -98,7 +151,7 @@ body {
 
 .matrix-grid .row-label {
   font-size: 11px;
-  color: #666;
+  color: var(--label-fg);
   display: flex;
   align-items: center;
   padding-right: 4px;
@@ -108,15 +161,17 @@ body {
 .matrix-grid input {
   width: 100%;
   padding: 3px 4px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--input-border);
   border-radius: 3px;
   font-size: 13px;
   font-family: 'Consolas', 'Monaco', monospace;
   text-align: right;
+  background: var(--panel-bg);
+  color: var(--fg);
 }
 .matrix-grid input:focus {
   outline: none;
-  border-color: #3498db;
+  border-color: var(--input-focus);
   box-shadow: 0 0 3px rgba(52, 152, 219, 0.3);
 }
 
@@ -128,18 +183,19 @@ body {
 .button-row button {
   flex: 1;
   padding: 6px 12px;
-  border: 1px solid #bbb;
+  border: 1px solid var(--input-border);
   border-radius: 4px;
-  background: #ecf0f1;
+  background: var(--btn-bg);
+  color: var(--fg);
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
 }
 .button-row button:hover {
-  background: #d5dbdb;
+  background: var(--btn-hover);
 }
 .button-row button:active {
-  background: #bdc3c7;
+  background: var(--btn-active);
 }
 
 .param-row {
@@ -154,23 +210,38 @@ body {
 .param-row input[type="number"] {
   width: 80px;
   padding: 3px 6px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--input-border);
   border-radius: 3px;
   font-family: monospace;
   font-size: 13px;
+  background: var(--panel-bg);
+  color: var(--fg);
 }
 .param-row select {
   padding: 3px 6px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--input-border);
   border-radius: 3px;
   font-size: 13px;
+  background: var(--panel-bg);
+  color: var(--fg);
+}
+#select-gallery {
+  background: var(--panel-bg);
+  color: var(--fg);
+  border-color: var(--input-border);
+}
+#input-search {
+  background: var(--panel-bg);
+  color: var(--fg);
+  border: 1px solid var(--input-border);
+  border-radius: 3px;
 }
 
 #panel-info {
   grid-row: 2;
   grid-column: 1 / -1;
-  background: #fff;
-  border: 1px solid #ddd;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
   border-radius: 4px;
   padding: 8px 12px;
   font-size: 13px;
@@ -186,7 +257,7 @@ body {
 #panel-info .seg-info {
   margin-top: 4px;
   font-size: 12px;
-  color: #555;
+  color: var(--label-fg);
   font-family: monospace;
 }
 
