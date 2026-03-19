@@ -129,6 +129,9 @@ function redraw() {
     drawSRMarker(g, scale);
   }
 
+  // Feature point markers: Cv (λ=0), Cw (λ=∞), SR (for 2D)
+  drawFeatureMarkers(g, scale);
+
   // Puncture ticks and labels
   drawPunctureTicks(g, scale);
 
@@ -275,6 +278,98 @@ function drawSRMarker(g, scale) {
     .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
     .attr('font-size', '0.09px').attr('fill', '#ff00ff').attr('font-weight', 'bold')
     .text('SR');
+}
+
+function drawFeatureMarkers(g, scale) {
+  const Q = state.Q, P = state.P;
+  if (!Q || !P) return;
+
+  // Cv marker at λ=0 — only if classifier confirmed inside
+  if (state.hasCvPos) {
+    const a = lambdaToAngle(0, scale);
+    const [rx, ry] = angleToXY(a, R_RING);
+    // Green square marker
+    const sz = 0.04;
+    g.append('rect')
+      .attr('x', rx - sz).attr('y', ry - sz)
+      .attr('width', sz * 2).attr('height', sz * 2)
+      .attr('fill', '#228B22').attr('fill-opacity', 0.8)
+      .attr('stroke', 'black').attr('stroke-width', 0.008)
+      .attr('transform', `rotate(45,${rx},${ry})`);
+    const [lx, ly] = angleToXY(a, 0.68);
+    g.append('line')
+      .attr('x1', rx * 0.93).attr('y1', ry * 0.93).attr('x2', lx).attr('y2', ly)
+      .attr('stroke', '#228B22').attr('stroke-width', 0.006).attr('opacity', 0.6);
+    g.append('text')
+      .attr('x', lx).attr('y', ly)
+      .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+      .attr('font-size', '0.08px').attr('fill', '#228B22').attr('font-weight', 'bold')
+      .text('Cv');
+  }
+
+  // Cw marker at λ=∞ (if bary inside simplex)
+  {
+    let dQ = Q.length - 1;
+    while (dQ > 0 && Math.abs(Q[dQ]) < 1e-30) dQ--;
+    if (state.hasCwPos) {
+      // Place at ∞ position (top of ring)
+      const [rx, ry] = [0, -(R_RING)];
+      const sz = 0.04;
+      g.append('rect')
+        .attr('x', rx - sz).attr('y', ry - sz)
+        .attr('width', sz * 2).attr('height', sz * 2)
+        .attr('fill', '#8B4513').attr('fill-opacity', 0.8)
+        .attr('stroke', 'black').attr('stroke-width', 0.008)
+        .attr('transform', `rotate(45,${rx},${ry})`);
+      const [lx, ly] = [0, -(R_RING - 0.32)];
+      g.append('line')
+        .attr('x1', rx).attr('y1', ry + 0.06).attr('x2', lx).attr('y2', ly)
+        .attr('stroke', '#8B4513').attr('stroke-width', 0.006).attr('opacity', 0.6);
+      g.append('text')
+        .attr('x', lx).attr('y', ly)
+        .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+        .attr('font-size', '0.08px').attr('fill', '#8B4513').attr('font-weight', 'bold')
+        .text('Cw');
+    }
+  }
+
+  // SR marker for 2D mode (when srLambda is not set by classifier)
+  // The classifier's has_shared_root is the authority (exact BigInt resultant).
+  // We use float Q-roots only for positioning on the ring.
+  if (state.hasSR && state.srLambda === null && state.qRoots) {
+    // Place SR at the Q-root closest to a shared root.
+    // Since has_shared_root is exact, we just need the best display position.
+    for (const root of state.qRoots) {
+      const a = lambdaToAngle(root, scale);
+      const [rx, ry] = angleToXY(a, R_RING);
+      const sz = 0.06;
+      const diamond = `M${rx},${ry - sz} L${rx + sz * 0.6},${ry} L${rx},${ry + sz} L${rx - sz * 0.6},${ry} Z`;
+      g.append('path')
+        .attr('d', diamond)
+        .attr('fill', '#ff00ff').attr('fill-opacity', 0.7)
+        .attr('stroke', 'black').attr('stroke-width', 0.01);
+      const [lx, ly] = angleToXY(a, 0.65);
+      const [mx, my] = angleToXY(a, R_RING - 0.06);
+      g.append('line')
+        .attr('x1', mx).attr('y1', my).attr('x2', lx).attr('y2', ly)
+        .attr('stroke', '#ff00ff').attr('stroke-width', 0.008).attr('opacity', 0.6);
+      g.append('text')
+        .attr('x', lx).attr('y', ly)
+        .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+        .attr('font-size', '0.09px').attr('fill', '#ff00ff').attr('font-weight', 'bold')
+        .text('SR');
+      break; // show first SR only
+    }
+  }
+
+  // Bubble marker
+  if (state.hasB) {
+    g.append('text')
+      .attr('x', 0).attr('y', 0)
+      .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+      .attr('font-size', '0.12px').attr('fill', SEGMENT_COLORS[0]).attr('font-weight', 'bold')
+      .text('B');
+  }
 }
 
 function drawPunctureTicks(g, scale) {

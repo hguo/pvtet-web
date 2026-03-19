@@ -62,3 +62,29 @@ export function randomVW(seed, range = 9) {
   );
   return { V, W };
 }
+
+/**
+ * Generate random integer V[3][2] and W[3][2] for 2D triangle.
+ */
+export function randomVW2D(seed, range = 9) {
+  if (seed === 0) {
+    return {
+      V: [[2, 3], [-1, -2], [0, -1]],
+      W: [[3, 0], [-1, 0], [-3, -2]],
+    };
+  }
+  if (seed === 1) {
+    return {
+      V: [[5, 0], [3, 2], [1, 2]],
+      W: [[0, 1], [3, -5], [0, 4]],
+    };
+  }
+  const rng = new SeededRNG(seed);
+  const V = Array.from({ length: 3 }, () =>
+    Array.from({ length: 2 }, () => rng.randInt(-range, range))
+  );
+  const W = Array.from({ length: 3 }, () =>
+    Array.from({ length: 2 }, () => rng.randInt(-range, range))
+  );
+  return { V, W };
+}

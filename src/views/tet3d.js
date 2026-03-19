@@ -97,8 +97,9 @@ export function initTet3D() {
   scene.add(hoverGroup);
 
   // Event listeners
-  state.on('dataChanged', updateAll);
-  state.on('hoverChanged', updateHover);
+  state.on('dataChanged', () => { if (state.dim === '3d') updateAll(); });
+  state.on('hoverChanged', () => { if (state.dim === '3d') updateHover(); });
+  state.on('modeChanged', () => { if (state.dim === '3d') { onResize(); updateAll(); } });
   window.addEventListener('resize', onResize);
 
   // Reset view button — restore initial camera state
@@ -114,7 +115,7 @@ export function initTet3D() {
   renderer.domElement.addEventListener('mouseleave', () => state.clearHover());
 
   onResize();
-  updateAll();
+  if (state.dim === '3d') updateAll();
   animate();
 }
 
@@ -400,11 +401,7 @@ function updateCurves() {
     curveGroup.add(label2d);
   }
 
-  // Bubble
-  if (state.bubble && state.bubble.length > 2) {
-    const color = new THREE.Color(SEGMENT_COLORS[0]);
-    curveGroup.add(buildTube(state.bubble, color));
-  }
+  // Bubble is now drawn as a regular segment (has ptsList+lamsList)
 }
 
 function updatePunctures() {

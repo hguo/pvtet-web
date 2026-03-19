@@ -81,6 +81,31 @@ export function cubicDiscriminantSign(P) {
 }
 
 /**
+ * Solve quadratic P[0] + P[1]x + P[2]x² = 0.
+ * Returns sorted array of real roots.
+ */
+export function solveQuadratic(P) {
+  const eps = 1e-12;
+  if (!P || P.length < 3) {
+    // Linear or constant
+    if (!P || P.length < 2) return [];
+    if (Math.abs(P[1]) < eps) return [];
+    return [-P[0] / P[1]];
+  }
+  if (Math.abs(P[2]) < eps) {
+    if (Math.abs(P[1]) < eps) return [];
+    return [-P[0] / P[1]];
+  }
+  const disc = P[1] * P[1] - 4 * P[2] * P[0];
+  if (disc < -eps) return [];
+  if (Math.abs(disc) < eps) return [-P[1] / (2 * P[2])];
+  const sd = Math.sqrt(disc);
+  const roots = [(-P[1] + sd) / (2 * P[2]), (-P[1] - sd) / (2 * P[2])];
+  roots.sort((a, b) => a - b);
+  return roots;
+}
+
+/**
  * Effective degree of polynomial.
  */
 export function polyDegree(coeffs) {

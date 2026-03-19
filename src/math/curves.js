@@ -202,12 +202,12 @@ function sortedUnique(arr) {
 
 /**
  * Check for bubble: closed PV curve inside tet with 0 punctures.
- * Returns array of 3D points if bubble exists, null otherwise.
+ * Returns { pts, lams } or null.
  */
 export function sampleBubble(Q, P) {
   const nSamples = 400;
   const t = linspace(-0.499 * Math.PI, 0.499 * Math.PI, nSamples);
-  const pts = [];
+  const pts = [], lams = [];
 
   for (const ti of t) {
     const lam = Math.tan(ti);
@@ -218,13 +218,15 @@ export function sampleBubble(Q, P) {
       if (s > 1e-10) {
         const muNorm = muClip.map(v => v / s);
         pts.push(baryTetTo3D(muNorm));
+        lams.push(lam);
       }
     }
   }
 
   if (pts.length > 2) {
     pts.push(pts[0]);
-    return pts;
+    lams.push(lams[0]);
+    return { pts, lams };
   }
   return null;
 }

@@ -3,8 +3,9 @@
  * Gallery, Animation, Search, Export, Keyboard shortcuts, URL hash state.
  */
 import { state } from './state.js';
-import { randomVW } from './math/random.js';
+import { randomVW, randomVW2D } from './math/random.js';
 import { classifyTetCase } from './math/classify.js';
+import { classifyTriCase2D } from './math/classify2d.js';
 
 let vInputs = []; // vInputs[i][j] = <input> for V[i][j]
 let wInputs = [];
@@ -14,8 +15,7 @@ let animTimer = null;
 let animSeed = 0;
 
 export function initControls() {
-  buildMatrixGrid('v-grid', 'V', true);
-  buildMatrixGrid('w-grid', 'W', false);
+  rebuildMatrixGrids();
 
   document.getElementById('btn-randomize').addEventListener('click', doRandomize);
   document.getElementById('btn-reset').addEventListener('click', doReset);
@@ -46,11 +46,16 @@ export function initControls() {
   // Dark mode
   document.getElementById('btn-dark-mode').addEventListener('click', toggleDarkMode);
 
+  // Mode toggle
+  const btnMode = document.getElementById('btn-mode-toggle');
+  if (btnMode) btnMode.addEventListener('click', toggleMode);
+
   // Keyboard shortcuts
   document.addEventListener('keydown', onKeyDown);
 
   // Sync inputs from state
   state.on('dataChanged', syncInputsFromState);
+  state.on('modeChanged', onModeChanged);
   syncInputsFromState();
 
   // Load from URL hash if present
@@ -59,22 +64,131 @@ export function initControls() {
 
   // Update hash when data changes
   state.on('dataChanged', updateHash);
+
+  updateModeUI();
+  updateGalleryOptions();
 }
 
-function buildMatrixGrid(containerId, fieldName, isV) {
+function toggleMode() {
+  const newDim = state.dim === '2d' ? '3d' : '2d';
+  state.setDim(newDim);
+}
+
+function onModeChanged() {
+  updateModeUI();
+  rebuildMatrixGrids();
+  updateGalleryOptions();
+  // Load seed 0 for the new mode to get valid data
+  doLoadSeed();
+  syncInputsFromState();
+}
+
+function updateModeUI() {
+  const btn = document.getElementById('btn-mode-toggle');
+  if (btn) btn.textContent = state.dim === '2d' ? 'Switch to 3D' : 'Switch to 2D';
+
+  document.body.classList.toggle('mode-2d', state.dim === '2d');
+  document.body.classList.toggle('mode-3d', state.dim === '3d');
+
+  // Update field labels
+  const vLabel = document.querySelector('#panel-controls h3 .field-label');
+  if (vLabel) vLabel.textContent = state.dim === '2d' ? '(3\u00d72)' : '(4\u00d73)';
+  const wParent = document.querySelectorAll('#panel-controls h3');
+  for (const h of wParent) {
+    const fl = h.querySelector('.field-label');
+    if (fl && h.textContent.startsWith('W'))
+      fl.textContent = state.dim === '2d' ? '(3\u00d72)' : '(4\u00d73)';
+  }
+}
+
+function updateGalleryOptions() {
+  const sel = document.getElementById('select-gallery');
+  sel.innerHTML = '<option value="">-- Select a case --</option>';
+  if (state.dim === '2d') {
+    // Curated from ftk2 pv_tri_cases_2d/curated_v3.jsonl
+    const opts = [
+      [78187, 'T0_Q0'],
+      [8751, 'T0_Q2-'],
+      [7000, 'T0_Q2-_Cv_Cw_B'],
+      [8744, 'T0_Q2+'],
+      [545, 'T0_Q2+_SR'],
+      [25644, 'T0_Q2+_ISR_Cv_Cw'],
+      [31432, 'T0_Q2+_TN'],
+      [49064, 'T0_Qz_Cv1_D11'],
+      [1892, 'T2_Q1'],
+      [7266, 'T2_Q2+'],
+      [8764, 'T2_Q2-'],
+      [11620, 'T2_(1,1)_Q2+_SR'],
+      [11899, 'T2_(1,1)_Q2+_Cv_Cw'],
+      [14219, 'T2_(1,1)_Q2+_Cv_Cw1'],
+      [53518, 'T2_(1,1)_Q1_Cv_Cw'],
+      [32116, 'T2_(1,1)_Q2+_SR_Cv_Cw'],
+      [13395, 'T1_Q2+_Cv0'],
+      [12388, 'T2_Q1'],
+      [303, 'T2_(1,1)_Q2+_Cw0_D00'],
+      [73915, 'T6_(2,4)_Q2+'],
+    ];
+    for (const [seed, cat] of opts)
+      sel.innerHTML += `<option value="${seed}">${seed}: ${cat}</option>`;
+  } else {
+    // Curated from ftk2 paper_selection_v21.jsonl
+    const opts = [
+      [0, 'T0_Q2-_Cv_B'],
+      [1, 'T2_Q3+_SR (NISR)'],
+      [3618, 'T0_Q3+'],
+      [991, 'T0_Q3-'],
+      [993, 'T2_Q3+'],
+      [990, 'T2_Q3-'],
+      [2360, 'T2_Q2'],
+      [5, 'T2_(1,1)_Q3+_Cw'],
+      [17657, 'T2_(1,1)_Q3+_Cv_Cw'],
+      [4, 'T4_(2,2)_Q3+_Cv'],
+      [9579, 'T4_(2,2)_Q3+'],
+      [13109, 'T4_(2,2)_Q3-'],
+      [33, 'T4_(1,1,2)_Q3+_Cw'],
+      [101980, 'T4_(1,1,2)_Q3+_SR'],
+      [5976, 'T4_(1,3)_Q3+_Cw'],
+      [1611, 'T4_Q3+'],
+      [3617, 'T4_Q3-'],
+      [1704, 'T4_Q3-_Cw0_D00'],
+      [11021, 'T6_(2,2,2)_Q3+'],
+      [4988, 'T6_(2,4)_Q3+'],
+      [2397, 'T6_Q3+'],
+      [10322, 'T6_Q3-'],
+      [292, 'T6_(1,2,3)_Q3+_Cw'],
+      [10553, 'T8_(2,2,4)_Q3+'],
+      [25710, 'T8_(2,6)_Q3-'],
+      [30810, 'T8_Q3-'],
+      [4325, 'T0_Q3-_D00'],
+      [65893, 'T2_Q3+_D00'],
+      [23330, 'T6_(2,2,2)_Q3+_D00'],
+    ];
+    for (const [seed, cat] of opts)
+      sel.innerHTML += `<option value="${seed}">${seed}: ${cat}</option>`;
+  }
+}
+
+function rebuildMatrixGrids() {
+  const nRows = state.dim === '2d' ? 3 : 4;
+  const nCols = state.dim === '2d' ? 2 : 3;
+  buildMatrixGrid('v-grid', 'V', true, nRows, nCols);
+  buildMatrixGrid('w-grid', 'W', false, nRows, nCols);
+}
+
+function buildMatrixGrid(containerId, fieldName, isV, nRows = 4, nCols = 3) {
   const container = document.getElementById(containerId);
   container.innerHTML = '';
+  container.style.gridTemplateColumns = `auto repeat(${nCols}, 1fr)`;
   const inputs = [];
 
-  for (let i = 0; i < 4; i++) {
-    // Row label
+  for (let i = 0; i < nRows; i++) {
     const label = document.createElement('span');
     label.className = 'row-label';
     label.textContent = `${fieldName.toLowerCase()}${String.fromCharCode(0x2080 + i)}`;
     container.appendChild(label);
 
     const row = [];
-    for (let j = 0; j < 3; j++) {
+    for (let j = 0; j < nCols; j++) {
       const inp = document.createElement('input');
       inp.type = 'number';
       inp.step = 'any';
@@ -92,27 +206,45 @@ function buildMatrixGrid(containerId, fieldName, isV) {
 }
 
 function onMatrixInput(isV) {
-  const V = state.V.map(r => [...r]);
-  const W = state.W.map(r => [...r]);
-
-  for (let i = 0; i < 4; i++) {
-    for (let j = 0; j < 3; j++) {
-      if (isV) {
-        V[i][j] = parseFloat(vInputs[i][j].value) || 0;
-      } else {
-        W[i][j] = parseFloat(wInputs[i][j].value) || 0;
+  if (state.dim === '2d') {
+    const V = state.V2d.map(r => [...r]);
+    const W = state.W2d.map(r => [...r]);
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 2; j++) {
+        if (isV) V[i][j] = parseFloat(vInputs[i][j].value) || 0;
+        else W[i][j] = parseFloat(wInputs[i][j].value) || 0;
       }
     }
+    state.setVW(V, W);
+  } else {
+    const V = state.V.map(r => [...r]);
+    const W = state.W.map(r => [...r]);
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 3; j++) {
+        if (isV) V[i][j] = parseFloat(vInputs[i][j].value) || 0;
+        else W[i][j] = parseFloat(wInputs[i][j].value) || 0;
+      }
+    }
+    state.setVW(V, W);
   }
-
-  state.setVW(V, W);
 }
 
 function syncInputsFromState() {
-  for (let i = 0; i < 4; i++) {
-    for (let j = 0; j < 3; j++) {
-      vInputs[i][j].value = state.V[i][j];
-      wInputs[i][j].value = state.W[i][j];
+  if (state.dim === '2d') {
+    if (vInputs.length < 3 || vInputs[0].length < 2) return;
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 2; j++) {
+        vInputs[i][j].value = state.V2d[i][j];
+        wInputs[i][j].value = state.W2d[i][j];
+      }
+    }
+  } else {
+    if (vInputs.length < 4 || vInputs[0].length < 3) return;
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 3; j++) {
+        vInputs[i][j].value = state.V[i][j];
+        wInputs[i][j].value = state.W[i][j];
+      }
     }
   }
 }
@@ -123,8 +255,13 @@ function doLoadSeed() {
   const seed = parseInt(seedStr);
   if (isNaN(seed) || seed < 0) return;
   const range = parseInt(document.getElementById('select-range').value) || 20;
-  const { V, W } = randomVW(seed, range);
-  state.setVW(V, W);
+  if (state.dim === '2d') {
+    const { V, W } = randomVW2D(seed, range);
+    state.setVW(V, W);
+  } else {
+    const { V, W } = randomVW(seed, range);
+    state.setVW(V, W);
+  }
 }
 
 function doRandomize() {
@@ -181,9 +318,15 @@ function doSearch() {
   const maxScan = 5000;
 
   for (let seed = 0; seed < maxScan && matches.length < 20; seed++) {
-    const { V, W } = randomVW(seed, range);
     try {
-      const cc = classifyTetCase(V, W);
+      let cc;
+      if (state.dim === '2d') {
+        const { V, W } = randomVW2D(seed, range);
+        cc = classifyTriCase2D(V, W);
+      } else {
+        const { V, W } = randomVW(seed, range);
+        cc = classifyTetCase(V, W);
+      }
       if (cc.category.toUpperCase().includes(query)) {
         matches.push({ seed, category: cc.category });
       }
@@ -292,7 +435,8 @@ function onKeyDown(e) {
 function updateHash() {
   const seed = document.getElementById('input-seed').value || '0';
   const range = document.getElementById('select-range').value || '20';
-  const hash = `s=${seed}&r=${range}`;
+  let hash = `s=${seed}&r=${range}`;
+  if (state.dim === '2d') hash += '&d=2d';
   if (location.hash !== '#' + hash) {
     history.replaceState(null, '', '#' + hash);
   }
@@ -304,6 +448,11 @@ function loadFromHash() {
   const params = new URLSearchParams(hash);
   const seed = params.get('s');
   const range = params.get('r');
+  const dim = params.get('d');
+
+  if (dim === '2d' && state.dim !== '2d') {
+    state.setDim('2d');
+  }
 
   if (seed !== null) {
     document.getElementById('input-seed').value = seed;

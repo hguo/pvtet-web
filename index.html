@@ -7,10 +7,11 @@
   <link rel="stylesheet" href="/style.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
 </head>
-<body>
+<body class="mode-3d">
   <header id="app-header">
     <h1>pvtet-web: Interactive PV Tetrahedron Explorer</h1>
     <div class="header-actions">
+      <button id="btn-mode-toggle" title="Toggle 2D/3D mode">Switch to 2D</button>
       <button id="btn-export" title="Export current case as JSON">Export</button>
       <button id="btn-dark-mode" title="Toggle dark mode">Dark</button>
     </div>
@@ -21,6 +22,10 @@
       <canvas id="tet-canvas"></canvas>
     </div>
 
+    <div id="panel-2d">
+      <canvas id="tri-canvas"></canvas>
+    </div>
+
     <div id="panel-ring">
       <svg id="ring-svg"></svg>
     </div>
@@ -29,16 +34,6 @@
       <h3>Gallery</h3>
       <select id="select-gallery" style="width:100%; margin-bottom:10px; font-size:12px">
         <option value="">-- Select a case --</option>
-        <option value="0">Seed 0: Bubble (T0_Q2-_Cv_B)</option>
-        <option value="1">Seed 1: Shared Root (T2_Q3+_SR)</option>
-        <option value="4">Seed 4: 4 punctures (T4_Q3+_Cv)</option>
-        <option value="5">Seed 5: Cross-infinity (T2_Q3+_Cw)</option>
-        <option value="6">Seed 6: Q3- single root (T2_Q3-_Cw)</option>
-        <option value="15">Seed 15: T4 Q3- (T4_Q3-)</option>
-        <option value="118">Seed 118: 6 punctures (T6_Q3+)</option>
-        <option value="898">Seed 898: Quadratic Q (T2_Q2)</option>
-        <option value="1704">Seed 1704: D00 vertex (T4_Q3-_D00)</option>
-        <option value="4325">Seed 4325: D01 edge (T1_Q3-_D01)</option>
       </select>
 
       <h3>V <span class="field-label">(4&times;3)</span></h3>

@@ -9,20 +9,20 @@
 
 // ── Helpers ──
 
-function bigAbs(x) { return x < 0n ? -x : x; }
+export function bigAbs(x) { return x < 0n ? -x : x; }
 
-function bigGcd(a, b) {
+export function bigGcd(a, b) {
   if (a < 0n) a = -a;
   if (b < 0n) b = -b;
   while (b !== 0n) { const t = b; b = a % b; a = t; }
   return a;
 }
 
-function bigSign(x) { return x > 0n ? 1 : x < 0n ? -1 : 0; }
+export function bigSign(x) { return x > 0n ? 1 : x < 0n ? -1 : 0; }
 
 // ── 1.1 Content Reduction ──
 
-function contentReduce(poly, deg) {
+export function contentReduce(poly, deg) {
   if (deg < 0) return;
   let g = 0n;
   for (let i = 0; i <= deg; i++) {
@@ -33,7 +33,7 @@ function contentReduce(poly, deg) {
   if (g > 1n) for (let i = 0; i <= deg; i++) poly[i] /= g;
 }
 
-function effectiveDegree(poly, maxDeg) {
+export function effectiveDegree(poly, maxDeg) {
   let d = maxDeg;
   while (d > 0 && poly[d] === 0n) d--;
   return d;
@@ -41,7 +41,7 @@ function effectiveDegree(poly, maxDeg) {
 
 // ── 1.2 Pseudo-Remainder ──
 
-function prem(f, df, g, dg) {
+export function prem(f, df, g, dg) {
   const r = new Array(8).fill(0n);
   for (let i = 0; i <= df; i++) r[i] = f[i];
 
@@ -64,7 +64,7 @@ function prem(f, df, g, dg) {
 
 // ── 1.3 Polynomial GCD ──
 
-function polyGcdFull(f_in, df, g_in, dg) {
+export function polyGcdFull(f_in, df, g_in, dg) {
   const p = new Array(8).fill(0n);
   const q = new Array(8).fill(0n);
   for (let i = 0; i <= df; i++) p[i] = f_in[i];
@@ -99,7 +99,7 @@ function polyGcdFull(f_in, df, g_in, dg) {
 
 // ── 1.4 Exact Polynomial Division ──
 
-function polyExactDiv(f, df, g, dg) {
+export function polyExactDiv(f, df, g, dg) {
   const rem = new Array(8).fill(0n);
   for (let i = 0; i <= df; i++) rem[i] = f[i];
 
@@ -116,7 +116,7 @@ function polyExactDiv(f, df, g, dg) {
 
 // ── 1.5 Resultant Sign via Bareiss ──
 
-function resultantSign(f_in, df, g_in, dg) {
+export function resultantSign(f_in, df, g_in, dg) {
   if (df <= 0 || dg <= 0) {
     if (df === 0 && dg === 0) return 1;
     if (df === 0) {
@@ -181,7 +181,7 @@ function resultantSign(f_in, df, g_in, dg) {
 
 // ── 1.6 Sign at Unique Root ──
 
-function signAtUniqueRoot(f, df, g, dg) {
+export function signAtUniqueRoot(f, df, g, dg) {
   if (dg === 0) return bigSign(g[0]);
   const resSign = resultantSign(f, df, g, dg);
   if (resSign === 0) return 0;
@@ -192,7 +192,7 @@ function signAtUniqueRoot(f, df, g, dg) {
 
 // ── Sign of f(p/q) via BigInt Horner ──
 
-function signPolyAtRational(f, df, p, q) {
+export function signPolyAtRational(f, df, p, q) {
   if (df <= 0) return bigSign(f[0]);
   if (q === 0n) {
     const lcS = bigSign(f[df]);
@@ -215,7 +215,7 @@ function signPolyAtRational(f, df, p, q) {
 
 // ── 1.7a Derivative ──
 
-function polyDerivative(f, df) {
+export function polyDerivative(f, df) {
   if (df <= 0) return { fp: [0n], dfp: 0 };
   const fp = new Array(df).fill(0n);
   for (let i = 0; i < df; i++) fp[i] = BigInt(i + 1) * f[i + 1];
@@ -224,7 +224,7 @@ function polyDerivative(f, df) {
 
 // ── 1.7b Square-free ──
 
-function polySqfree(f, df) {
+export function polySqfree(f, df) {
   if (df <= 1) {
     const sf = f.slice(0, df + 1);
     return { sf, dsf: df };
@@ -245,7 +245,7 @@ function polySqfree(f, df) {
 
 // ── 1.7c Count roots below rational ──
 
-function countRootsBelowRational(f, df, p, q) {
+export function countRootsBelowRational(f, df, p, q) {
   const signFt = signPolyAtRational(f, df, p, q);
   if (signFt === 0) return -1;
 
@@ -275,7 +275,7 @@ function countRootsBelowRational(f, df, p, q) {
 
 // ── Discriminant sign (BigInt, no overflow) ──
 
-function discriminantSign(P) {
+export function discriminantSign(P) {
   if (P[3] === 0n) return 0;
   let g = bigAbs(P[0]);
   for (let i = 1; i < 4; i++) g = bigGcd(g, bigAbs(P[i]));
@@ -287,7 +287,7 @@ function discriminantSign(P) {
 
 // ── 1.7 Signs at Roots ──
 
-function signsAtRoots(f_in, dfMax, g_in, dgMax, maxSigns, _depth) {
+export function signsAtRoots(f_in, dfMax, g_in, dgMax, maxSigns, _depth) {
   if (_depth === undefined) _depth = 0;
   if (_depth > 20) return [];
 
@@ -554,7 +554,7 @@ function signsAtRoots(f_in, dfMax, g_in, dgMax, maxSigns, _depth) {
 
 // ── 1.8 Root Comparison ──
 
-function compareRoots(f, df, fNroots, fRootIdx, g, dg, gNroots, gRootIdx) {
+export function compareRoots(f, df, fNroots, fRootIdx, g, dg, gNroots, gRootIdx) {
   df = effectiveDegree(f, df);
   dg = effectiveDegree(g, dg);
   if (df === 0 || dg === 0) return 0;
@@ -627,6 +627,150 @@ function compareRoots(f, df, fNroots, fRootIdx, g, dg, gNroots, gRootIdx) {
   return -1; // countBelow === gRootIdx and no shared root → α < β
 }
 
+// ── RP1 Sign Helpers ──
+
+/** Sign of polynomial p(λ) as λ→+∞: sign of leading coefficient. */
+export function signAtPlusInf(p, deg) {
+  let d = deg;
+  while (d > 0 && p[d] === 0n) d--;
+  if (d === 0) return bigSign(p[0]);
+  return p[d] > 0n ? 1 : -1;
+}
+
+/** Sign of polynomial p(λ) at the RP1 infinity point: sign(lc)*(-1)^deg. */
+export function signAtInf(p, deg) {
+  let d = deg;
+  while (d > 0 && p[d] === 0n) d--;
+  if (d === 0) return bigSign(p[0]);
+  const signLc = p[d] > 0n ? 1 : -1;
+  return (d % 2 === 0) ? signLc : -signLc;
+}
+
+/** Sign of square-free polynomial just after its rootIdx-th root. */
+export function signJustAfterRoot(p, deg, nDistinct, rootIdx) {
+  let d = deg;
+  while (d > 0 && p[d] === 0n) d--;
+  if (d === 0) return bigSign(p[0]);
+  const signLc = p[d] > 0n ? 1 : -1;
+  const exp = nDistinct - 1 - rootIdx;
+  return (exp % 2 === 0) ? signLc : -signLc;
+}
+
+/** Sign of g on interior of RP1 arc whose left endpoint is (leftFace, leftRootIdx). */
+export function rp1SignOnArc(g, degG, nDistG, gFace, leftFace, leftRootIdx, precomputedSign) {
+  if (leftRootIdx < 0)
+    return signAtInf(g, degG);
+  if (gFace === leftFace)
+    return signJustAfterRoot(g, degG, nDistG, leftRootIdx);
+  return precomputedSign;
+}
+
+/** Check if RP1 arc is inside simplex: all P_red[k]/Q_red >= 0. */
+export function rp1ArcIsInside(nFaces, sp, sq) {
+  if (sq === 0) return false;
+  for (let k = 0; k < nFaces; k++)
+    if (sp[k] * sq < 0) return false;
+  return true;
+}
+
+/** Q-interval compatibility: same interval or merged through infinity. */
+export function rp1ArcsSameInterval(qiA, qiB, nQrRoots, mergeInfinity) {
+  if (qiA === qiB) return true;
+  if (mergeInfinity)
+    return (qiA === 0 && qiB === nQrRoots) || (qiA === nQrRoots && qiB === 0);
+  return false;
+}
+
+/** Build sign tables for RP1 interval arithmetic. */
+function rp1BuildSignTable(nFaces, PRed, degPRed, nDistinctRed, QRed, degQRed) {
+  const signPk = Array.from({ length: nFaces }, () =>
+    Array.from({ length: 4 }, () => new Array(nFaces).fill(0))
+  );
+  const signQr = Array.from({ length: nFaces }, () => new Array(4).fill(0));
+
+  for (let fi = 0; fi < nFaces; fi++) {
+    if (nDistinctRed[fi] === 0) continue;
+    for (let k = 0; k < nFaces; k++) {
+      if (k === fi) continue;
+      const signs = signsAtRoots(PRed[fi], degPRed[fi], PRed[k], degPRed[k], 4, 0);
+      for (let ri = 0; ri < signs.length && ri < 4; ri++)
+        signPk[fi][ri][k] = signs[ri];
+    }
+    {
+      const signs = signsAtRoots(PRed[fi], degPRed[fi], QRed, degQRed, 4, 0);
+      for (let ri = 0; ri < signs.length && ri < 4; ri++)
+        signQr[fi][ri] = signs[ri];
+    }
+  }
+  return { signPk, signQr };
+}
+
+/** Group consecutive inside arcs into connected regions and pair consecutively. */
+function rp1GroupInsideArcs(arcInside, nSorted, nFinite, sorted) {
+  const pairs = [];
+  const visited = new Array(nSorted).fill(false);
+
+  for (let start = 0; start < nSorted; start++) {
+    if (!arcInside[start] || visited[start]) continue;
+    const group = [sorted[start]];
+    let ci = false;
+    let ai = start;
+    while (arcInside[ai] && !visited[ai]) {
+      visited[ai] = true;
+      if (ai >= nFinite - 1) ci = true;
+      const next = (ai + 1) % nSorted;
+      group.push(sorted[next]);
+      ai = next;
+      if (ai === start) break;
+    }
+    for (let i = 0; i + 1 < group.length; i += 2) {
+      pairs.push({ a: group[i], b: group[i + 1], contains_infinity: ci });
+    }
+  }
+  return pairs;
+}
+
+/** Full RP1 pairing of punctures. */
+export function pairPuncturesRP1(nFaces, sorted, nSorted, nFinite,
+  pFace, pRootIdx, pQInterval, nQrRoots, mergeInfinity,
+  PRed, degPRed, nDistinctRed, QRed, degQRed) {
+  if (nSorted < 2) return [];
+
+  const { signPk, signQr } = rp1BuildSignTable(
+    nFaces, PRed, degPRed, nDistinctRed, QRed, degQRed);
+
+  const arcInside = new Array(nSorted).fill(false);
+  for (let ai = 0; ai < nSorted; ai++) {
+    const pi = sorted[ai];
+    const fi = pFace[pi];
+    const ri = pRootIdx[pi];
+    const next = (ai + 1) % nSorted;
+    const pj = sorted[next];
+
+    const sp = new Array(nFaces);
+    for (let k = 0; k < nFaces; k++)
+      sp[k] = rp1SignOnArc(PRed[k], degPRed[k], nDistinctRed[k], k,
+                            fi, ri, signPk[fi][ri < 0 ? 0 : ri][k]);
+    const sq = rp1SignOnArc(QRed, degQRed, 0, -1,
+                             fi, ri, signQr[fi][ri < 0 ? 0 : ri]);
+
+    let inside = rp1ArcIsInside(nFaces, sp, sq);
+
+    if (inside)
+      inside = rp1ArcsSameInterval(pQInterval[pi], pQInterval[pj],
+                                    nQrRoots, mergeInfinity);
+
+    if (inside && ai >= nFinite - 1 && !mergeInfinity) {
+      const hasInfEndpoint = pRootIdx[pi] < 0 || pRootIdx[pj] < 0;
+      if (!hasInfEndpoint) inside = false;
+    }
+
+    arcInside[ai] = inside;
+  }
+
+  return rp1GroupInsideArcs(arcInside, nSorted, nFinite, sorted);
+}
+
 // ── Main Solver ──
 
 export function solvePVTetV2(Q_raw, P_raw) {
@@ -659,6 +803,12 @@ export function solvePVTetV2(Q_raw, P_raw) {
     Q_red = new Array(4).fill(0n);
     for (let i = 0; i <= dq; i++) Q_red[i] = qDiv[i];
     degQ_red = dq;
+    // Replace P[k] with P[k]/h to exclude pass-through roots (matching C++)
+    for (let k = 0; k < 4; k++) {
+      const { q: pDiv, dq: dp } = polyExactDiv(P[k], degP[k], h, dh);
+      for (let i = 0; i < 4; i++) P[k][i] = (i <= dp) ? pDiv[i] : 0n;
+      degP[k] = dp;
+    }
   } else {
     Q_red = Q.slice();
     degQ_red = degQ;
@@ -842,6 +992,130 @@ export function solvePVTetV2(Q_raw, P_raw) {
       ri.valid = false;
   }
 
+  // Step 4c: Edge/vertex pass-through exclusion
+  {
+    const dP = [];
+    for (let k = 0; k < 4; k++) {
+      const { fp, dfp } = polyDerivative(P[k], degP[k]);
+      dP.push({ fp, dfp });
+    }
+
+    for (const ri of allRoots) {
+      if (!ri.valid || ri.isInfinity) continue;
+
+      if (ri.isEdge) {
+        const k1 = ri.edgeFaces[0], k2 = ri.edgeFaces[1];
+        if (k1 < 0 || k2 < 0) continue;
+        // Product P'[k1] * P'[k2]
+        const prod = new Array(8).fill(0n);
+        for (let i = 0; i <= dP[k1].dfp; i++)
+          for (let j = 0; j <= dP[k2].dfp; j++)
+            prod[i + j] += dP[k1].fp[i] * dP[k2].fp[j];
+        let dp = dP[k1].dfp + dP[k2].dfp;
+        while (dp > 0 && prod[dp] === 0n) dp--;
+
+        const sProd = signsAtRoots(P[ri.face], degP[ri.face], prod, dp, 3, 0);
+        if (ri.rootIdx < sProd.length && sProd[ri.rootIdx] < 0) {
+          ri.valid = false;
+        } else if (ri.rootIdx < sProd.length && sProd[ri.rootIdx] === 0) {
+          // Tangency at edge: check P''*Q
+          for (let ki = 0; ki < 2; ki++) {
+            const kf = ri.edgeFaces[ki];
+            const { fp: fpp, dfp: dfpp } = polyDerivative(dP[kf].fp, dP[kf].dfp);
+            const edeg = effectiveDegree(fpp, dfpp);
+            const sDk = signsAtRoots(P[ri.face], degP[ri.face], dP[kf].fp, dP[kf].dfp, 3, 0);
+            if (ri.rootIdx < sDk.length && sDk[ri.rootIdx] !== 0) continue;
+            // P'' * Q_red product
+            const pqProd = new Array(8).fill(0n);
+            for (let a = 0; a <= edeg; a++)
+              for (let b = 0; b <= degQ_red; b++)
+                pqProd[a + b] += fpp[a] * Q_red[b];
+            let dpq = edeg + degQ_red;
+            while (dpq > 0 && pqProd[dpq] === 0n) dpq--;
+            const sPQ = signsAtRoots(P[ri.face], degP[ri.face], pqProd, dpq, 3, 0);
+            if (ri.rootIdx < sPQ.length && sPQ[ri.rootIdx] < 0) {
+              ri.valid = false;
+              break;
+            }
+          }
+        }
+      } else if (ri.isVertex) {
+        const f = ri.face;
+        const otherFaces = [];
+        for (let j = 0; j < 4; j++) {
+          if (j === f || otherFaces.length >= 2) continue;
+          if (degP[j] === 0) continue;
+          const sJ = signsAtRoots(P[f], degP[f], P[j], degP[j], 3, 0);
+          if (ri.rootIdx < sJ.length && sJ[ri.rootIdx] === 0)
+            otherFaces.push(j);
+        }
+        if (otherFaces.length === 2) {
+          const k1 = otherFaces[0], k2 = otherFaces[1];
+          const prod1 = new Array(8).fill(0n);
+          for (let i = 0; i <= dP[f].dfp; i++)
+            for (let j = 0; j <= dP[k1].dfp; j++)
+              prod1[i + j] += dP[f].fp[i] * dP[k1].fp[j];
+          let dp1 = dP[f].dfp + dP[k1].dfp;
+          while (dp1 > 0 && prod1[dp1] === 0n) dp1--;
+          const prod2 = new Array(8).fill(0n);
+          for (let i = 0; i <= dP[f].dfp; i++)
+            for (let j = 0; j <= dP[k2].dfp; j++)
+              prod2[i + j] += dP[f].fp[i] * dP[k2].fp[j];
+          let dp2 = dP[f].dfp + dP[k2].dfp;
+          while (dp2 > 0 && prod2[dp2] === 0n) dp2--;
+          const s1 = signsAtRoots(P[f], degP[f], prod1, dp1, 3, 0);
+          const s2 = signsAtRoots(P[f], degP[f], prod2, dp2, 3, 0);
+          if ((ri.rootIdx < s1.length && s1[ri.rootIdx] < 0) ||
+              (ri.rootIdx < s2.length && s2[ri.rootIdx] < 0))
+            ri.valid = false;
+        }
+      }
+    }
+  }
+
+  // Step 4d: TN face-interior handling
+  {
+    const nAllOrig = allRoots.length;
+    for (let r = 0; r < nAllOrig; r++) {
+      const ri = allRoots[r];
+      if (!ri.valid || ri.isInfinity || ri.isEdge || ri.isVertex) continue;
+
+      const face = ri.face;
+      const ridx = ri.rootIdx;
+      if (degP[face] < 2) continue;
+
+      const { fp: dPf, dfp: ddPf } = polyDerivative(P[face], degP[face]);
+      const edeg = effectiveDegree(dPf, ddPf);
+      if (edeg === 0 && dPf[0] === 0n) continue;
+      const sDp = signsAtRoots(P[face], degP[face], dPf, edeg, 3, 0);
+      if (ridx >= sDp.length || sDp[ridx] !== 0) continue;
+
+      // TN candidate: P'(α)=0
+      // P''[face] = [2*P[face][2], 6*P[face][3]] (matching C++ hardcoded)
+      const Ppp = [2n * P[face][2], 6n * P[face][3]];
+      const degPpp = effectiveDegree(Ppp, 1);
+      if (degPpp === 0 && Ppp[0] === 0n) {
+        ri.valid = false;
+        result.hasPassthrough = true;
+        continue;
+      }
+
+      // Evaluate P'' and Q separately at root, then multiply signs (matching C++)
+      const sPP = signsAtRoots(P[face], degP[face], Ppp, degPpp, 3, 0);
+      const sQ = signsAtRoots(P[face], degP[face], Q, degQ, 3, 0);
+      const ppSign = (ridx < sPP.length) ? sPP[ridx] : 0;
+      const qSign = (ridx < sQ.length) ? sQ[ridx] : 0;
+
+      if (ppSign * qSign < 0) {
+        ri.valid = false;
+        result.hasPassthrough = true;
+      } else if (ppSign * qSign > 0) {
+        // Non-isolated TN → duplicate puncture
+        allRoots.push({ ...ri });
+      }
+    }
+  }
+
   // Step 5: Collect valid punctures
   const validRoots = allRoots.filter(ri => ri.valid);
   if (validRoots.length === 0) return result;
@@ -887,24 +1161,17 @@ export function solvePVTetV2(Q_raw, P_raw) {
     }
 
     let countBelow = 0;
-    const qrSigns = signsAtRoots(P[ri.face], degP[ri.face],
-      Q_red, degQ_red, 3, 0);
-    const lcQrSign = Q_red[degQ_red] > 0n ? 1 : -1;
-    const qrAtAlpha = (ri.rootIdx < qrSigns.length) ? qrSigns[ri.rootIdx] : lcQrSign;
-
-    if (qrAtAlpha !== 0) {
-      countBelow = 0;
-      for (let qi = 0; qi < nQrRoots; qi++) {
-        const cmp = compareRoots(P[ri.face], degP[ri.face],
-          nDistinct[ri.face], ri.rootIdx,
-          Q_red, degQ_red, nQrRoots, qi);
-        if (cmp > 0) countBelow++;
-      }
+    for (let qi = 0; qi < nQrRoots; qi++) {
+      const cmp = compareRoots(P[ri.face], degP[ri.face],
+        nDistinct[ri.face], ri.rootIdx,
+        Q_red, degQ_red, nQrRoots, qi);
+      if (cmp > 0) countBelow++;
     }
     ri.qInterval = countBelow;
   }
 
   // Step 8: Fill result
+  // P is already reduced by h (Step 1), so P = P_red, degP = degP_red, nDistinct = nDistinctRed.
   for (const ri of validRoots) {
     result.punctures.push({
       face: ri.face,
@@ -917,7 +1184,16 @@ export function solvePVTetV2(Q_raw, P_raw) {
     });
   }
 
-  // Step 9: Pairing
+  // Store infrastructure for classifier
+  result.mergeInfinity = false;
+  result.nQrRoots = nQrRoots;
+  result.h = h;
+  result.hDeg = dh;
+  result.P_red = P.map(pk => pk.slice());
+  result.degP_red = degP.slice();
+  result.nDistinctRed = nDistinct.slice();
+
+  // Step 9: RP1 Pairing
   let mergeInfinity = false;
   if (Q[3] === 0n) {
     mergeInfinity = true;
@@ -930,24 +1206,28 @@ export function solvePVTetV2(Q_raw, P_raw) {
       }
     }
   }
+  result.mergeInfinity = mergeInfinity;
 
   const nPunctures = result.punctures.length;
-  for (let qi = 0; qi <= nQrRoots; qi++) {
-    if (mergeInfinity && qi === nQrRoots && nQrRoots > 0) continue;
-
-    const group = [];
-    if (mergeInfinity && qi === 0 && nQrRoots > 0) {
-      for (let i = 0; i < nPunctures; i++)
-        if (result.punctures[i].qInterval === nQrRoots) group.push(i);
-      for (let i = 0; i < nPunctures; i++)
-        if (result.punctures[i].qInterval === 0) group.push(i);
-    } else {
-      for (let i = 0; i < nPunctures; i++)
-        if (result.punctures[i].qInterval === qi) group.push(i);
+  if (nPunctures >= 2) {
+    // Build arrays for pairPuncturesRP1
+    const sorted = [];
+    const pFaceArr = [], pRidxArr = [], pQiArr = [];
+    let nFin = 0;
+    for (let i = 0; i < nPunctures; i++) {
+      sorted.push(i);
+      pFaceArr.push(result.punctures[i].face);
+      pRidxArr.push(result.punctures[i].rootIdx);
+      pQiArr.push(result.punctures[i].qInterval);
+      if (result.punctures[i].rootIdx >= 0) nFin++;
     }
 
-    for (let i = 0; i + 1 < group.length; i += 2) {
-      result.pairs.push({ a: group[i], b: group[i + 1] });
+    const rp1Pairs = pairPuncturesRP1(4, sorted, nPunctures, nFin,
+      pFaceArr, pRidxArr, pQiArr, nQrRoots, mergeInfinity,
+      P, degP, nDistinct, Q_red, degQ_red);
+
+    for (const pair of rp1Pairs) {
+      result.pairs.push({ a: pair.a, b: pair.b, contains_infinity: pair.contains_infinity });
     }
   }
 

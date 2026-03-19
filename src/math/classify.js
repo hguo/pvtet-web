@@ -117,9 +117,9 @@ export function classifyTetCase(V, W) {
   cc.Q_bigint = Q_bigint;
   cc.P_bigint = P_bigint;
 
-  // ── Phase 2: Q structure ──
+  // ── Phase 2: Q structure (exact BigInt degree) ──
   let degQ = 3;
-  while (degQ > 0 && Math.abs(Q[degQ]) < 1e-30) degQ--;
+  while (degQ > 0 && Q_bigint[degQ] === 0n) degQ--;
   cc.qDegree = degQ;
 
   const qRoots = solveCubic(Q);
@@ -127,17 +127,17 @@ export function classifyTetCase(V, W) {
   cc.Q_roots = qRoots;
   cc.n_Q_roots = qRoots.length;
 
-  // Discriminant sign (exact for degree-3)
+  // Discriminant sign (exact BigInt)
   if (degQ === 3) {
     cc.Q_disc_sign = discriminantSign_bigint(Q_bigint);
   } else if (degQ === 2) {
-    const qdisc = Q[1] * Q[1] - 4 * Q[0] * Q[2];
-    cc.Q_disc_sign = qdisc > 0 ? 1 : qdisc < 0 ? -1 : 0;
+    const qdisc = Q_bigint[1] * Q_bigint[1] - 4n * Q_bigint[0] * Q_bigint[2];
+    cc.Q_disc_sign = qdisc > 0n ? 1 : qdisc < 0n ? -1 : 0;
   }
 
   // Q type string
   let qType;
-  if (degQ === 0 && Q[0] === 0) qType = 'Qz';
+  if (degQ === 0 && Q_bigint[0] === 0n) qType = 'Qz';
   else if (degQ === 0) qType = 'Q0';
   else if (degQ === 1) qType = 'Q1';
   else if (degQ === 2) {
@@ -260,10 +260,13 @@ export function classifyTetCase(V, W) {
   cc.pairs = [];
   for (const pair of pv2.pairs) {
     const pi_a = pair.a, pi_b = pair.b;
-    const a_iv = punctures[pi_a] ? punctures[pi_a].intervalIdx : -1;
-    const b_iv = punctures[pi_b] ? punctures[pi_b].intervalIdx : -1;
-    const is_cross = a_iv !== b_iv;
-    cc.pairs.push({ pi_a, pi_b, is_cross, interval_idx: Math.min(a_iv, b_iv) });
+    // C++: is_cross = merge_infinity && (qa != qb)
+    const qa = pv2.punctures[pi_a] ? pv2.punctures[pi_a].qInterval : -1;
+    const qb = pv2.punctures[pi_b] ? pv2.punctures[pi_b].qInterval : -1;
+    const is_cross = pv2.mergeInfinity && (qa !== qb);
+    const iv_idx = punctures[pi_a] ? punctures[pi_a].intervalIdx : -1;
+    cc.pairs.push({ pi_a, pi_b, is_cross, contains_infinity: pair.contains_infinity,
+                    interval_idx: iv_idx });
   }
 
   return cc;
@@ -362,17 +365,17 @@ function detectCriticalPoints(cc, tags) {
   }
 }
 
-/** Detect D00/D01 vertex/edge degeneracies. */
+/** Detect D00/D01 vertex/edge degeneracies. Exact BigInt cross product. */
 function detectDmd(cc, tags) {
   const { V, W, punctures } = cc;
 
-  // D00: vertex where V×W = 0
+  // D00: vertex where V×W = 0 (exact BigInt)
   let hasD00 = false;
   for (let i = 0; i < 4; i++) {
-    const cx = V[i][1] * W[i][2] - V[i][2] * W[i][1];
-    const cy = V[i][2] * W[i][0] - V[i][0] * W[i][2];
-    const cz = V[i][0] * W[i][1] - V[i][1] * W[i][0];
-    if (cx === 0 && cy === 0 && cz === 0) hasD00 = true;
+    const cx = BigInt(V[i][1]) * BigInt(W[i][2]) - BigInt(V[i][2]) * BigInt(W[i][1]);
+    const cy = BigInt(V[i][2]) * BigInt(W[i][0]) - BigInt(V[i][0]) * BigInt(W[i][2]);
+    const cz = BigInt(V[i][0]) * BigInt(W[i][1]) - BigInt(V[i][1]) * BigInt(W[i][0]);
+    if (cx === 0n && cy === 0n && cz === 0n) hasD00 = true;
   }
 
   // D01: edge puncture at generic λ (ExactPV2 already excludes waypoints)
@@ -385,17 +388,16 @@ function detectDmd(cc, tags) {
   if (hasD01) tags.push('D01');
 }
 
-/** Detect bubble (closed PV curve with no punctures). */
+/** Detect bubble (closed PV curve with no punctures). Exact BigInt. */
 function detectBubble(cc, tags) {
-  const { Q_coeffs: Q, P_coeffs: P, n_Q_roots } = cc;
+  const { Q_bigint, P_bigint, n_Q_roots } = cc;
 
-  // ExactPV2 already excludes waypoints, so all punctures are valid
   if (cc.punctures.length > 0) return;
   if (n_Q_roots > 0) return;
-  if (Q[0] === 0) return;
+  if (Q_bigint[0] === 0n) return;
 
-  // Check all μ_k(0) = P_k[0]/Q[0] ≥ 0
-  const inside = P.every(pk => pk[0] / Q[0] >= -1e-10);
+  // Exact: all P_k[0] * Q[0] >= 0 (same sign)
+  const inside = P_bigint.every(pk => pk[0] * Q_bigint[0] >= 0n);
   if (inside) {
     cc.has_B = true;
     tags.push('B');

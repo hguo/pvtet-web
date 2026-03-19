@@ -261,6 +261,31 @@ body {
   font-family: monospace;
 }
 
+/* 2D panel */
+#panel-2d {
+  grid-row: 1;
+  grid-column: 1;
+  background: var(--canvas-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+#tri-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Mode-based show/hide */
+body.mode-2d #panel-3d { display: none !important; }
+body.mode-2d #panel-2d { display: block !important; }
+body.mode-3d #panel-2d { display: none !important; }
+body.mode-3d #panel-3d { display: block !important; }
+#panel-2d { display: none; }
+
 /* Tooltip for 3D hover */
 .pv-tooltip {
   position: absolute;

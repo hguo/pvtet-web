@@ -174,3 +174,36 @@ export function polyToLatex(coeffs, name = 'Q') {
   const expr = terms.length > 0 ? terms.join('') : '0';
   return `${name}(\\lambda) = ${expr}`;
 }
+
+/**
+ * Compute Q(λ) and P[3](λ) from V[3][2], W[3][2] for 2D triangle.
+ * Float version for visualization root-solving.
+ * Returns { Q: number[3], P: number[3][3] }
+ */
+export function computeTriQP2D_float(V, W) {
+  const a00 = V[0][0] - V[2][0], a01 = V[1][0] - V[2][0];
+  const a10 = V[0][1] - V[2][1], a11 = V[1][1] - V[2][1];
+  const b00 = W[0][0] - W[2][0], b01 = W[1][0] - W[2][0];
+  const b10 = W[0][1] - W[2][1], b11 = W[1][1] - W[2][1];
+
+  const Q = [
+    a00 * a11 - a10 * a01,
+    a00 * b11 + b00 * a11 - a01 * b10 - b01 * a10,
+    b00 * b11 - b10 * b01,
+  ];
+
+  const P = [[0,0,0],[0,0,0],[0,0,0]];
+  P[0][0] = V[1][0]*V[2][1] - V[1][1]*V[2][0];
+  P[0][2] = W[1][0]*W[2][1] - W[1][1]*W[2][0];
+  P[0][1] = V[1][0]*W[2][1] + W[1][0]*V[2][1] - V[1][1]*W[2][0] - W[1][1]*V[2][0];
+
+  P[1][0] = V[2][0]*V[0][1] - V[2][1]*V[0][0];
+  P[1][2] = W[2][0]*W[0][1] - W[2][1]*W[0][0];
+  P[1][1] = V[2][0]*W[0][1] + W[2][0]*V[0][1] - V[2][1]*W[0][0] - W[2][1]*V[0][0];
+
+  P[2][0] = V[0][0]*V[1][1] - V[0][1]*V[1][0];
+  P[2][2] = W[0][0]*W[1][1] - W[0][1]*W[1][0];
+  P[2][1] = V[0][0]*W[1][1] + W[0][0]*V[1][1] - V[0][1]*W[1][0] - W[0][1]*V[1][0];
+
+  return { Q, P };
+}

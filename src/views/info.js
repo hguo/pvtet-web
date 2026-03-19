@@ -26,9 +26,10 @@ function updateInfo() {
     discStr = labels[state.qDiscSign] || `\\Delta_Q\\;\\text{sign}=${state.qDiscSign}`;
   }
 
-  // Build aligned polynomial table: Q and P₀–P₃ with coefficients lined up
+  // Build aligned polynomial table
+  const pNames = state.dim === '2d' ? ['P_0','P_1','P_2'] : ['P_0','P_1','P_2','P_3'];
   const polyTableLatex = buildAlignedPolyLatex(
-    state.Q, state.P, 'Q', ['P_0','P_1','P_2','P_3']
+    state.Q, state.P, 'Q', pNames
   );
 
   // Segment info
@@ -85,11 +86,11 @@ function updateInfo() {
 function buildAlignedPolyLatex(Q, P, qName, pNames) {
   const allPolys = [{ name: qName, coeffs: Q }, ...P.map((c, i) => ({ name: pNames[i], coeffs: c }))];
 
-  // Find max degree with nonzero coefficient across all polys
-  let maxDeg = 0;
+  // Max degree: use state.qDegree (exact from BigInt) as authoritative
+  let maxDeg = state.qDegree || 0;
   for (const { coeffs } of allPolys) {
     for (let d = coeffs.length - 1; d >= 0; d--) {
-      if (Math.abs(coeffs[d]) > 1e-30) { maxDeg = Math.max(maxDeg, d); break; }
+      if (Math.round(coeffs[d]) !== 0) { maxDeg = Math.max(maxDeg, d); break; }
     }
   }
 

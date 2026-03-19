@@ -6,11 +6,16 @@
  * then builds visual segments via curve sampling.
  */
 import { classifyTetCase } from './math/classify.js';
+import { classifyTriCase2D } from './math/classify2d.js';
 import { polyEval } from './math/polynomials.js';
 import {
   SEGMENT_COLORS,
   baryTetTo3D, lambdaToBary, samplePVCurve, sampleBubble,
 } from './math/curves.js';
+import {
+  SEGMENT_COLORS_2D,
+  baryTriTo2D, lambdaToBary2D, samplePVCurve2D, sampleBubble2D,
+} from './math/curves2d.js';
 import { randomVW } from './math/random.js';
 
 // Default V, W: seed 0 (bubble case, matching ftk2)
@@ -19,8 +24,12 @@ const { V: DEFAULT_V, W: DEFAULT_W } = randomVW(0, 20);
 class State {
   constructor() {
     this._listeners = {};
+    this.dim = '3d'; // '2d' or '3d'
     this.V = DEFAULT_V.map(r => [...r]);
     this.W = DEFAULT_W.map(r => [...r]);
+    // Separate 2D field storage (seed 0 defaults)
+    this.V2d = [[2,3],[-1,-2],[0,-1]];
+    this.W2d = [[3,0],[-1,0],[-3,-2]];
 
     // Computed fields (populated by recompute)
     this.Q = [0, 0, 0, 0];
@@ -69,9 +78,22 @@ class State {
     }
   }
 
+  setDim(dim) {
+    if (this.dim === dim) return;
+    this.dim = dim;
+    this.recompute();
+    this.emit('modeChanged');
+    this.emit('dataChanged');
+  }
+
   setVW(V, W) {
-    this.V = V.map(r => [...r]);
-    this.W = W.map(r => [...r]);
+    if (this.dim === '2d') {
+      this.V2d = V.map(r => [...r]);
+      this.W2d = W.map(r => [...r]);
+    } else {
+      this.V = V.map(r => [...r]);
+      this.W = W.map(r => [...r]);
+    }
     this.recompute();
     this.emit('dataChanged');
   }
@@ -99,19 +121,35 @@ class State {
     this.hoverPunctureIdx = -1;
     this.hoverSegmentIdx = -1;
     if (lam !== null) {
-      let mu;
-      if (!isFinite(lam)) {
-        // Asymptotic point: μ_k(∞) = P_k[3]/Q[3]
-        if (this.Q[3] !== 0) {
-          mu = this.P.map(pk => pk[3] / this.Q[3]);
+      if (this.dim === '2d') {
+        let mu;
+        if (!isFinite(lam)) {
+          const degQ = this.Q.length - 1;
+          if (this.Q[degQ] !== 0) {
+            mu = this.P.map(pk => (pk.length > degQ ? pk[degQ] : 0) / this.Q[degQ]);
+          }
+        } else {
+          mu = lambdaToBary2D(lam, this.Q, this.P);
+        }
+        if (mu && mu.every(m => m >= -1e-6) && mu.every(m => m <= 1 + 1e-6)) {
+          this.hoverRingPos3d = baryTriTo2D(mu);
+        } else {
+          this.hoverRingPos3d = null;
         }
       } else {
-        mu = lambdaToBary(lam, this.Q, this.P);
-      }
-      if (mu && mu.every(m => m >= -1e-6) && mu.every(m => m <= 1 + 1e-6)) {
-        this.hoverRingPos3d = baryTetTo3D(mu);
-      } else {
-        this.hoverRingPos3d = null;
+        let mu;
+        if (!isFinite(lam)) {
+          if (this.Q[3] !== 0) {
+            mu = this.P.map(pk => pk[3] / this.Q[3]);
+          }
+        } else {
+          mu = lambdaToBary(lam, this.Q, this.P);
+        }
+        if (mu && mu.every(m => m >= -1e-6) && mu.every(m => m <= 1 + 1e-6)) {
+          this.hoverRingPos3d = baryTetTo3D(mu);
+        } else {
+          this.hoverRingPos3d = null;
+        }
       }
     } else {
       this.hoverRingPos3d = null;
@@ -130,10 +168,15 @@ class State {
   }
 
   recompute() {
-    // ── Full classification and stitching ──
-    const cc = classifyTetCase(this.V, this.W);
+    if (this.dim === '2d') {
+      this.recompute2D();
+    } else {
+      this.recompute3D();
+    }
+  }
 
-    // Map classify results to state fields
+  recompute3D() {
+    const cc = classifyTetCase(this.V, this.W);
     this.Q = cc.Q_coeffs;
     this.P = cc.P_coeffs;
     this.qRoots = cc.Q_roots;
@@ -151,20 +194,69 @@ class State {
     this.srLambda = cc.SR_lambda;
     this.srPos3d = cc.SR_pos3d;
 
-    // ── Build visual segments from pairs ──
     this.segments = buildSegments(cc, this.Q, this.P);
 
-    // ── Bubble detection ──
     if (cc.has_B) {
-      this.bubble = sampleBubble(this.Q, this.P);
-      if (this.bubble && this.segments.length === 0) {
+      const bub = sampleBubble(this.Q, this.P);
+      this.bubble = bub ? bub.pts : null;
+      if (bub && this.segments.length === 0) {
         this.segments = [{
-          ptsList: [this.bubble],
+          ptsList: [bub.pts],
+          lamsList: [bub.lams],
           color: SEGMENT_COLORS[0],
-          piEntry: -1,
-          piExit: -1,
-          lamEntry: null,
-          lamExit: null,
+          piEntry: -1, piExit: -1,
+          lamEntry: null, lamExit: null,
+          infinitySpanning: true,
+          infPos3d: null, zeroPos3d: null,
+        }];
+      }
+    } else {
+      this.bubble = null;
+    }
+  }
+
+  recompute2D() {
+    let cc;
+    try {
+      cc = classifyTriCase2D(this.V2d, this.W2d);
+    } catch (e) {
+      console.error('classifyTriCase2D error:', e);
+      return;
+    }
+    this.Q = cc.Q_coeffs;
+    this.P = cc.P_coeffs;
+    this.qRoots = cc.Q_roots;
+    this.qDegree = cc.qDegree;
+    this.qDiscSign = cc.Q_disc_sign;
+    this.punctures = cc.punctures;
+    this.intervals = cc.intervals;
+    this.category = cc.category;
+    this.hasSR = cc.has_shared_root;
+    this.hasB = cc.has_B;
+    this.hasCvPos = cc.has_Cv_pos;
+    this.hasCwPos = cc.has_Cw_pos;
+    this.CvMu = null;
+    this.CwMu = null;
+    this.srLambda = null;
+    this.srPos3d = null;
+
+    try {
+      this.segments = buildSegments2D(cc, this.Q, this.P);
+    } catch (e) {
+      console.error('buildSegments2D error:', e);
+      this.segments = [];
+    }
+
+    if (cc.has_B) {
+      const bub = sampleBubble2D(this.Q, this.P);
+      this.bubble = bub ? bub.pts : null;
+      if (bub && this.segments.length === 0) {
+        this.segments = [{
+          ptsList: [bub.pts],
+          lamsList: [bub.lams],
+          color: SEGMENT_COLORS_2D[0],
+          piEntry: -1, piExit: -1,
+          lamEntry: null, lamExit: null,
           infinitySpanning: true,
           infPos3d: null, zeroPos3d: null,
         }];
@@ -234,12 +326,12 @@ function buildSegments(cc, Q, P) {
 
   const segments = [];
   for (let idx = 0; idx < pairs.length; idx++) {
-    const { pi_a, pi_b, is_cross } = pairs[idx];
+    const { pi_a, pi_b, contains_infinity } = pairs[idx];
     const p1 = punctures[pi_a];
     const p2 = punctures[pi_b];
     const color = SEGMENT_COLORS[idx % SEGMENT_COLORS.length];
 
-    if (is_cross && infPos3d) {
+    if (contains_infinity && infPos3d) {
       // ── Infinity-spanning segment ──
       const l1 = p1.lambda, l2 = p2.lambda;
       const l1Inf = !isFinite(l1), l2Inf = !isFinite(l2);
@@ -406,6 +498,84 @@ function pickClosest(subsegs, lam) {
     if (d < bestDist) { best = sub; bestDist = d; }
   }
   return best;
+}
+
+/**
+ * Build visual segments from 2D classify pairs.
+ */
+function buildSegments2D(cc, Q, P) {
+  const { pairs, punctures, intervals } = cc;
+  if (pairs.length === 0) return [];
+
+  const lamHints = punctures
+    .map(p => p.lambda)
+    .filter(l => isFinite(l));
+
+  const allSubsegs = [];
+  for (const iv of intervals) {
+    const segs = samplePVCurve2D(Q, P, iv.lb, iv.ub, iv.isInfinity, 200, lamHints);
+    allSubsegs.push(...segs);
+  }
+
+  const segments = [];
+  for (let idx = 0; idx < pairs.length; idx++) {
+    const { pi_a, pi_b, contains_infinity } = pairs[idx];
+    const p1 = punctures[pi_a];
+    const p2 = punctures[pi_b];
+    const color = SEGMENT_COLORS_2D[idx % SEGMENT_COLORS_2D.length];
+    const isInfSpanning = contains_infinity || false;
+
+    if (isInfSpanning) {
+      // Infinity-spanning: sample both halves beyond each puncture
+      const l1 = p1.lambda, l2 = p2.lambda;
+      const hiLam = Math.max(l1, l2);
+      const loLam = Math.min(l1, l2);
+      const rightSegs = samplePVCurve2D(Q, P, hiLam, null, true, 200, [hiLam]);
+      const leftSegs = samplePVCurve2D(Q, P, null, loLam, true, 200, [loLam]);
+      const ptsList = [], lamsList = [];
+      for (const sub of rightSegs) { ptsList.push(sub.pts); lamsList.push(sub.lams); }
+      for (const sub of leftSegs) { ptsList.push(sub.pts); lamsList.push(sub.lams); }
+      segments.push({
+        ptsList, lamsList, color,
+        piEntry: pi_a, piExit: pi_b,
+        lamEntry: p1.lambda, lamExit: p2.lambda,
+        infinitySpanning: true,
+        infPos3d: null, zeroPos3d: null,
+      });
+    } else {
+      // Normal segment: match sub-segments by λ proximity
+      const ptsList = [];
+      const lamsList = [];
+      for (const sub of allSubsegs) {
+        const d = Math.min(
+          lamDist(sub.lamEntry, p1.lambda), lamDist(sub.lamEntry, p2.lambda),
+          lamDist(sub.lamExit, p1.lambda), lamDist(sub.lamExit, p2.lambda)
+        );
+        let bestPairDist = Infinity;
+        for (let otherIdx = 0; otherIdx < pairs.length; otherIdx++) {
+          if (otherIdx === idx) continue;
+          const op1 = punctures[pairs[otherIdx].pi_a];
+          const op2 = punctures[pairs[otherIdx].pi_b];
+          bestPairDist = Math.min(bestPairDist,
+            lamDist(sub.lamEntry, op1.lambda), lamDist(sub.lamEntry, op2.lambda),
+            lamDist(sub.lamExit, op1.lambda), lamDist(sub.lamExit, op2.lambda)
+          );
+        }
+        if (d <= bestPairDist) {
+          ptsList.push(sub.pts);
+          lamsList.push(sub.lams);
+        }
+      }
+      segments.push({
+        ptsList, lamsList, color,
+        piEntry: pi_a, piExit: pi_b,
+        lamEntry: p1.lambda, lamExit: p2.lambda,
+        infinitySpanning: false,
+        infPos3d: null, zeroPos3d: null,
+      });
+    }
+  }
+  return segments;
 }
 
 function lamDist(a, b) {

@@ -276,6 +276,45 @@ export function triangleCharPoly(V_face, W_face) {
 }
 
 /**
+ * Compute 2D triangle Q and P polynomials in BigInt.
+ * V[3][2], W[3][2] are integer arrays.
+ * Returns { Q_bigint: BigInt[3], P_bigint: BigInt[3][3] }
+ */
+export function characteristicPolynomials2D_bigint(V, W) {
+  const a00 = BigInt(V[0][0] - V[2][0]), a01 = BigInt(V[1][0] - V[2][0]);
+  const a10 = BigInt(V[0][1] - V[2][1]), a11 = BigInt(V[1][1] - V[2][1]);
+  const b00 = BigInt(W[0][0] - W[2][0]), b01 = BigInt(W[1][0] - W[2][0]);
+  const b10 = BigInt(W[0][1] - W[2][1]), b11 = BigInt(W[1][1] - W[2][1]);
+
+  const Q_bigint = [
+    a00 * a11 - a10 * a01,
+    a00 * b11 + b00 * a11 - a01 * b10 - b01 * a10,
+    b00 * b11 - b10 * b01,
+  ];
+
+  const P_bigint = [[0n,0n,0n],[0n,0n,0n],[0n,0n,0n]];
+  const V0 = V.map(r => r.map(v => BigInt(v)));
+  const W0 = W.map(r => r.map(v => BigInt(v)));
+
+  P_bigint[0][0] = V0[1][0]*V0[2][1] - V0[1][1]*V0[2][0];
+  P_bigint[0][2] = W0[1][0]*W0[2][1] - W0[1][1]*W0[2][0];
+  P_bigint[0][1] = V0[1][0]*W0[2][1] + W0[1][0]*V0[2][1]
+                  - V0[1][1]*W0[2][0] - W0[1][1]*V0[2][0];
+
+  P_bigint[1][0] = V0[2][0]*V0[0][1] - V0[2][1]*V0[0][0];
+  P_bigint[1][2] = W0[2][0]*W0[0][1] - W0[2][1]*W0[0][0];
+  P_bigint[1][1] = V0[2][0]*W0[0][1] + W0[2][0]*V0[0][1]
+                  - V0[2][1]*W0[0][0] - W0[2][1]*V0[0][0];
+
+  P_bigint[2][0] = V0[0][0]*V0[1][1] - V0[0][1]*V0[1][0];
+  P_bigint[2][2] = W0[0][0]*W0[1][1] - W0[0][1]*W0[1][0];
+  P_bigint[2][1] = V0[0][0]*W0[1][1] + W0[0][0]*V0[1][1]
+                  - V0[0][1]*W0[1][0] - W0[0][1]*V0[1][0];
+
+  return { Q_bigint, P_bigint };
+}
+
+/**
  * Check if V[i] × W[i] = 0 at all vertices (exact BigInt cross product).
  * V[n][3], W[n][3] are integer arrays.
  */
